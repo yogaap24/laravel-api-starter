@@ -1,0 +1,52 @@
+{
+    "name": "kindharika/laravel-api-starter",
+    "description": "A Laravel API starter package with service layer, datatable macro, UUID models, FCM notifications, and scaffold generators.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "api",
+        "starter",
+        "scaffold",
+        "datatable",
+        "uuid",
+        "fcm",
+        "service"
+    ],
+    "authors": [
+        {
+            "name": "Kindharika",
+            "email": "kindharika@example.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/database": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/console": "^11.0 || ^12.0 || ^13.0",
+        "ramsey/uuid": "^4.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0 || ^11.0",
+        "orchestra/testbench": "^9.0 || ^10.0 || ^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Kindharika\\ApiStarter\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Kindharika\\ApiStarter\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Kindharika\\ApiStarter\\ApiStarterServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

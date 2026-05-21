@@ -1,0 +1,10 @@
+<?php
+
+namespace {{namespace}}\Services\{{modelClass}};
+
+use Kindharika\ApiStarter\Base\BaseServiceInterface;
+
+interface {{class}} extends BaseServiceInterface
+{
+    //
+}
