@@ -13,6 +13,7 @@ class ApiScaffold extends Command
                             {name : The name of the resource (e.g. Post)}
                             {--only= : Comma-separated types (model,controller,service,request,migration,resource,route,openapi)}
                             {--migrate : Run migrations after generation}
+                            {--force : Overwrite existing model/resource files}
                             {--no-route : Skip route generation}
                             {--no-openapi : Skip OpenAPI/Swagger generation}';
 
@@ -21,20 +22,21 @@ class ApiScaffold extends Command
     public function handle(): int
     {
         $name = Str::studly($this->argument('name'));
+        $force = $this->option('force') ? ['--force' => true] : [];
         $only = collect($this->option('only') ? explode(',', (string) $this->option('only')) : [])
             ->map(fn ($item) => trim($item))
             ->filter()
             ->values();
 
         $map = [
-            'model' => ['api:make-model', [$name]],
-            'migration' => ['api:make-migration', [$name]],
-            'request' => ['api:make-request', [$name]],
-            'service' => ['api:make-service', [$name . 'Service', '--model' => $name]],
-            'controller' => ['api:make-controller', [$name . 'Controller', '--model' => $name]],
-            'resource' => ['api:make-resource', [$name]],
-            'route' => ['api:make-route', [$name]],
-            'openapi' => ['api:make-openapi', [$name]],
+            'model' => ['api:make-model', array_merge(['name' => $name], $force)],
+            'migration' => ['api:make-migration', ['name' => $name]],
+            'request' => ['api:make-request', ['name' => $name]],
+            'service' => ['api:make-service', ['name' => $name . 'Service', '--model' => $name]],
+            'controller' => ['api:make-controller', ['name' => $name . 'Controller', '--model' => $name]],
+            'resource' => ['api:make-resource', array_merge(['name' => $name], $force)],
+            'route' => ['api:make-route', ['name' => $name]],
+            'openapi' => ['api:make-openapi', ['name' => $name]],
         ];
 
         if ($this->option('no-route')) {
@@ -53,7 +55,14 @@ class ApiScaffold extends Command
             [$command, $commandArgs] = $args;
 
             $this->info("Generating {$type}...");
-            $this->call($command, $commandArgs);
+
+            $exitCode = $this->call($command, $commandArgs);
+
+            if ($exitCode !== self::SUCCESS) {
+                $this->error("Failed generating {$type}.");
+
+                return $exitCode;
+            }
         }
 
         if ($this->option('migrate')) {

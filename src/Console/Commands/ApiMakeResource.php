@@ -11,7 +11,9 @@ class ApiMakeResource extends GeneratorCommand
 {
     use InteractsWithStubs;
 
-    protected $signature = 'api:make-resource {name}';
+    protected $signature = 'api:make-resource
+                            {name : The resource class name}
+                            {--force : Overwrite if the resource already exists}';
 
     protected $description = 'Create a new API resource class';
 

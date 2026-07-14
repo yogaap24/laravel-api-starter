@@ -12,7 +12,10 @@ class ApiMakeModel extends GeneratorCommand
 {
     use InteractsWithStubs;
 
-    protected $signature = 'api:make-model {name} {--table= : The table name}';
+    protected $signature = 'api:make-model
+                            {name : The model class name}
+                            {--table= : The table name}
+                            {--force : Overwrite if the model already exists}';
 
     protected $description = 'Create a new API model extending BaseModel';
 
