@@ -15,8 +15,8 @@ class ApiMakeRoute extends Command
 
     protected $signature = 'api:make-route
                             {name : The resource name}
-                            {--auth : Place route under Sanctum-protected directory}
-                            {--public : Place route under public (no auth) directory}';
+                            {--auth : Place route under routes/api-starter-protected (Sanctum)}
+                            {--public : Place route under routes/api-starter (public)}';
 
     protected $description = 'Create an apiResource route file auto-loaded by the package';
 
@@ -27,19 +27,22 @@ class ApiMakeRoute extends Command
         $route = Str::kebab(Str::pluralStudly($modelClass));
 
         $protected = $this->resolveProtected();
-        $dir = $protected
-            ? config('api-starter.paths.route', base_path('routes/api-starter'))
-            : config('api-starter.paths.route_public', base_path('routes/api-starter-public'));
+        $publicDir = config('api-starter.paths.route', base_path('routes/api-starter'));
+        $protectedDir = config('api-starter.paths.route_protected', base_path('routes/api-starter-protected'));
 
+        $dir = $protected ? $protectedDir : $publicDir;
         $path = $dir . '/' . $route . '.php';
 
         // Remove from the other directory if switching auth mode.
-        $otherDir = $protected
-            ? config('api-starter.paths.route_public', base_path('routes/api-starter-public'))
-            : config('api-starter.paths.route', base_path('routes/api-starter'));
-        $otherPath = $otherDir . '/' . $route . '.php';
+        $otherPath = ($protected ? $publicDir : $protectedDir) . '/' . $route . '.php';
         if (is_file($otherPath)) {
             unlink($otherPath);
+        }
+
+        // Also clean legacy public folder.
+        $legacy = base_path('routes/api-starter-public/' . $route . '.php');
+        if (is_file($legacy)) {
+            unlink($legacy);
         }
 
         $this->writeStub('route.stub', $path, [
@@ -48,8 +51,10 @@ class ApiMakeRoute extends Command
             'route' => $route,
         ]);
 
-        $mode = $protected ? 'protected (auth:' . config('api-starter.auth.guard', 'sanctum') . ')' : 'public';
-        $this->info("API route [{$route}] → {$path} [{$mode}]");
+        $mode = $protected
+            ? 'protected → routes/api-starter-protected (auth:' . config('api-starter.auth.guard', 'sanctum') . ')'
+            : 'public → routes/api-starter';
+        $this->info("API route [{$route}] created [{$mode}]");
 
         if ($protected && ! class_exists(\Laravel\Sanctum\Sanctum::class)) {
             $this->warn('laravel/sanctum not installed. Run: composer require laravel/sanctum');
@@ -68,6 +73,7 @@ class ApiMakeRoute extends Command
             return true;
         }
 
+        // Only NEW scaffolds follow API_STARTER_AUTH — never flip existing public folder.
         return AuthConfig::enabled();
     }
 }

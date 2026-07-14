@@ -1,0 +1,74 @@
+<?php
+
+namespace {{namespace}}\Http\Controllers\Api;
+
+use {{namespace}}\Http\Requests\Auth\ForgotPasswordRequest;
+use {{namespace}}\Http\Requests\Auth\LoginRequest;
+use {{namespace}}\Http\Requests\Auth\RegisterRequest;
+use {{namespace}}\Http\Requests\Auth\ResetPasswordRequest;
+use {{namespace}}\Services\Auth\AuthService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Kindharika\ApiStarter\Base\BaseApiController;
+
+class AuthController extends BaseApiController
+{
+    public function __construct(
+        protected AuthService $service,
+        Request $request,
+    ) {
+        parent::__construct($request);
+    }
+
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        $result = $this->service->register($request->validated());
+
+        return $this->sendSuccess($result, 'Registered successfully', 201);
+    }
+
+    public function login(LoginRequest $request): JsonResponse
+    {
+        $result = $this->service->login($request->validated());
+
+        if ($result === null) {
+            return $this->sendError(null, 'Invalid credentials', 401);
+        }
+
+        return $this->sendSuccess($result, 'Logged in successfully', 200);
+    }
+
+    public function logout(Request $request): JsonResponse
+    {
+        $this->service->logout($request->user());
+
+        return $this->sendSuccess(null, 'Logged out successfully', 200);
+    }
+
+    public function me(Request $request): JsonResponse
+    {
+        return $this->sendSuccess($this->service->me($request->user()), null, 200);
+    }
+
+    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
+    {
+        $status = $this->service->forgotPassword($request->validated());
+
+        if ($status !== \Illuminate\Support\Facades\Password::RESET_LINK_SENT) {
+            return $this->sendError(null, __($status), 422);
+        }
+
+        return $this->sendSuccess(null, __($status), 200);
+    }
+
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
+    {
+        $status = $this->service->resetPassword($request->validated());
+
+        if ($status !== \Illuminate\Support\Facades\Password::PASSWORD_RESET) {
+            return $this->sendError(null, __($status), 422);
+        }
+
+        return $this->sendSuccess(null, __($status), 200);
+    }
+}

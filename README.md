@@ -132,31 +132,52 @@ $posts = Post::datatable($request->all())->paginate(15);
 
 ## Optional Sanctum auth
 
-**Default: OFF** (public CRUD). Opt-in via config or per scaffold.
+### Route folders
+
+| Folder | Auth | Used by |
+|--------|------|---------|
+| `routes/api-starter/` | **Public** | Default scaffold + existing resources |
+| `routes/api-starter-protected/` | **`auth:sanctum`** | `api:scaffold X --auth` only |
+
+Existing files in `routes/api-starter/` stay public. `--auth` writes only into `api-starter-protected/`.
 
 ```bash
-# host app
+php artisan api:scaffold Post                 # → routes/api-starter/posts.php (public)
+php artisan api:scaffold CobaAuth --auth      # → routes/api-starter-protected/coba-auths.php
+```
+
+`API_STARTER_AUTH=true` only makes **new** scaffolds default to the protected folder — does not lock existing public routes.
+
+### Auth endpoints (login / register / forgot)
+
+```bash
 composer require laravel/sanctum
 php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"
+php artisan migrate
+php artisan api:make-auth
 ```
 
-`.env`:
-```env
-API_STARTER_AUTH=true
-# API_STARTER_AUTH_GUARD=sanctum
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/auth/register` | public |
+| POST | `/api/auth/login` | public |
+| POST | `/api/auth/forgot-password` | public |
+| POST | `/api/auth/reset-password` | public |
+| POST | `/api/auth/logout` | Bearer |
+| GET | `/api/auth/me` | Bearer |
+
+User model must use `HasApiTokens`:
+
+```php
+use Laravel\Sanctum\HasApiTokens;
+
+class User extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable;
+}
 ```
 
-Or per resource:
-```bash
-php artisan api:scaffold Post --auth      # protected
-php artisan api:scaffold Post --public    # public even if auth.enabled
-```
-
-Protected routes → `routes/api-starter/`  
-Public routes → `routes/api-starter-public/`  
-Docs (`/api/docs`) always public. Swagger shows Bearer Authorize when auth is on.
-
-User model should use `Laravel\Sanctum\HasApiTokens` (or extend `BaseAuthenticatable` + Sanctum trait).
+## Configuration
 
 ```php
 return [
@@ -164,6 +185,10 @@ return [
     'uuid_version' => 7, // 1 | 4 | 7 — use 4 for 1.x behavior
     'route_prefix' => 'api',
     'route_middleware' => ['api'],
+    'auth' => [
+        'enabled' => false, // new scaffolds default to --auth when true
+        'guard' => 'sanctum',
+    ],
     'datatable' => [
         'per_page' => 15,
         'search_operator' => 'auto', // auto | like | ilike
@@ -172,6 +197,7 @@ return [
         'enabled' => true,
         'title' => 'API Documentation',
         'version' => '1.0.0',
+        'server_url' => '/api',
     ],
 ];
 ```

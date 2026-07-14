@@ -102,8 +102,8 @@ class ApiScaffold extends Command
         $this->line("  PUT    {$resourceUrl}/{id}");
         $this->line("  DELETE {$resourceUrl}/{id}");
         $this->line('Auth: ' . ($protected
-            ? 'ON (auth:' . config('api-starter.auth.guard', 'sanctum') . ') — send Bearer token'
-            : 'OFF (public)'));
+            ? 'ON → routes/api-starter-protected (auth:' . config('api-starter.auth.guard', 'sanctum') . ')'
+            : 'OFF → routes/api-starter (public)'));
 
         if (! $this->option('no-openapi') && config('api-starter.openapi.enabled', true)) {
             $this->newLine();
@@ -120,6 +120,7 @@ class ApiScaffold extends Command
         }
 
         $this->newLine();
+        $this->comment('Auth endpoints: php artisan api:make-auth');
         $this->comment('Tip: php artisan api:scaffold Post --auth --migrate');
 
         return self::SUCCESS;

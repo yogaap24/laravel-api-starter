@@ -7,6 +7,7 @@ namespace Kindharika\ApiStarter;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Kindharika\ApiStarter\Console\Commands\ApiMakeAuth;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeController;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeMigration;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeModel;
@@ -34,6 +35,7 @@ class ApiStarterServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ApiScaffold::class,
+                ApiMakeAuth::class,
                 ApiMakeController::class,
                 ApiMakeMigration::class,
                 ApiMakeModel::class,
@@ -62,11 +64,17 @@ class ApiStarterServiceProvider extends ServiceProvider
     {
         $prefix = (string) config('api-starter.route_prefix', 'api');
 
-        $protectedDir = config('api-starter.paths.route', base_path('routes/api-starter'));
-        $publicDir = config('api-starter.paths.route_public', base_path('routes/api-starter-public'));
+        // Default folder = PUBLIC (keeps existing scaffolds unauthenticated)
+        $publicDir = config('api-starter.paths.route', base_path('routes/api-starter'));
+        // --auth only
+        $protectedDir = config('api-starter.paths.route_protected', base_path('routes/api-starter-protected'));
 
-        $this->loadRouteDirectory($protectedDir, $prefix, AuthConfig::protectedMiddleware());
+        // BC: old mistaken public folder name
+        $legacyPublic = base_path('routes/api-starter-public');
+
         $this->loadRouteDirectory($publicDir, $prefix, AuthConfig::publicMiddleware());
+        $this->loadRouteDirectory($legacyPublic, $prefix, AuthConfig::publicMiddleware());
+        $this->loadRouteDirectory($protectedDir, $prefix, AuthConfig::protectedMiddleware());
     }
 
     /**

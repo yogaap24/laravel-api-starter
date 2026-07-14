@@ -1,0 +1,94 @@
+<?php
+
+namespace {{namespace}}\Services\Auth;
+
+use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Base\BaseService;
+
+class AuthService extends BaseService
+{
+    public function __construct()
+    {
+        $modelClass = config('api-starter.auth.user_model', '{{namespace}}\Models\User');
+        parent::__construct(new $modelClass);
+    }
+
+    public function register(array $data): array
+    {
+        $user = $this->model->newQuery()->create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+        ]);
+
+        $token = $user->createToken(
+            config('api-starter.auth.token_name', 'api-token')
+        )->plainTextToken;
+
+        return [
+            'user' => $user,
+            'token' => $token,
+            'token_type' => 'Bearer',
+        ];
+    }
+
+    public function login(array $data): ?array
+    {
+        $user = $this->model->newQuery()->where('email', $data['email'])->first();
+
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
+            return null;
+        }
+
+        $token = $user->createToken(
+            config('api-starter.auth.token_name', 'api-token')
+        )->plainTextToken;
+
+        return [
+            'user' => $user,
+            'token' => $token,
+            'token_type' => 'Bearer',
+        ];
+    }
+
+    public function logout(Authenticatable $user): void
+    {
+        if (method_exists($user, 'currentAccessToken')) {
+            $user->currentAccessToken()?->delete();
+        }
+    }
+
+    public function me(Authenticatable $user): Authenticatable
+    {
+        return $user;
+    }
+
+    public function forgotPassword(array $data): string
+    {
+        return Password::sendResetLink(['email' => $data['email']]);
+    }
+
+    public function resetPassword(array $data): string
+    {
+        return Password::reset(
+            [
+                'email' => $data['email'],
+                'password' => $data['password'],
+                'password_confirmation' => $data['password_confirmation'],
+                'token' => $data['token'],
+            ],
+            function ($user, string $password): void {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'remember_token' => Str::random(60),
+                ])->save();
+
+                event(new PasswordReset($user));
+            }
+        );
+    }
+}

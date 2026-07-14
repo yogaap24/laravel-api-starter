@@ -20,8 +20,10 @@ return [
         'request' => app_path('Http/Requests'),
         'resource' => app_path('Http/Resources'),
         'migration' => database_path('migrations'),
+        // Default / existing scaffolds = PUBLIC
         'route' => base_path('routes/api-starter'),
-        'route_public' => base_path('routes/api-starter-public'),
+        // --auth scaffolds only
+        'route_protected' => base_path('routes/api-starter-protected'),
         'openapi' => base_path('storage/api-docs'),
     ],
 
@@ -45,18 +47,23 @@ return [
     |--------------------------------------------------------------------------
     | Optional Sanctum Auth (opt-in)
     |--------------------------------------------------------------------------
-    | Off by default. When enabled, scaffolded CRUD routes use auth:sanctum.
-    | Host app must install laravel/sanctum:
-    |   composer require laravel/sanctum
+    | Default routes in routes/api-starter/ are PUBLIC.
+    | Only routes in routes/api-starter-protected/ use auth:sanctum.
     |
-    | Per-resource: php artisan api:scaffold Post --auth
-    |               php artisan api:scaffold Post --public
+    |   php artisan api:scaffold Post              # public → api-starter/
+    |   php artisan api:scaffold Post --auth       # protected → api-starter-protected/
+    |   php artisan api:make-auth                  # login/register/forgot/reset
+    |
+    | Host app: composer require laravel/sanctum
     */
     'auth' => [
+        // When true, NEW scaffolds default to --auth (protected folder).
+        // Existing files in routes/api-starter/ stay public either way.
         'enabled' => (bool) env('API_STARTER_AUTH', false),
         'guard' => env('API_STARTER_AUTH_GUARD', 'sanctum'),
-        // null = ["auth:{guard}"]. Override with full middleware list if needed.
         'middleware' => null,
+        'user_model' => env('API_STARTER_AUTH_USER_MODEL', 'App\\Models\\User'),
+        'token_name' => env('API_STARTER_AUTH_TOKEN_NAME', 'api-token'),
     ],
 
     /*
