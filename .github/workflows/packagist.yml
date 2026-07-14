@@ -18,14 +18,54 @@ jobs:
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+          PACKAGIST_PACKAGE: kindharika/laravel-api-starter
+          GITHUB_REPO: https://github.com/yogaap24/laravel-api-starter
         run: |
-          if [ -z "$PACKAGIST_USERNAME" ] || [ -z "$PACKAGIST_TOKEN" ]; then
+          set -euo pipefail
+
+          if [ -z "${PACKAGIST_USERNAME:-}" ] || [ -z "${PACKAGIST_TOKEN:-}" ]; then
             echo "Missing PACKAGIST_USERNAME or PACKAGIST_TOKEN secrets."
-            echo "Add them under repo Settings → Secrets, or configure the GitHub webhook on Packagist."
+            echo "Add them under repo Settings → Secrets and Actions."
+            echo "PACKAGIST_USERNAME = your packagist.org username (not GitHub username)."
+            echo "PACKAGIST_TOKEN = API token from https://packagist.org/profile/ (Main or Safe token)."
             exit 1
           fi
 
-          curl -fsS -X POST \
+          payload=$(cat <<EOF
+          {"repository":"${GITHUB_REPO}"}
+          EOF
+          )
+
+          echo "Updating ${PACKAGIST_PACKAGE} on Packagist..."
+
+          http_code=$(curl -sS -o /tmp/packagist-response.json -w '%{http_code}' \
+            -X POST \
             -H "Content-Type: application/json" \
-            "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
-            -d '{"repository":{"url":"https://github.com/yogaap24/laravel-api-starter"}}'
+            -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_TOKEN}" \
+            -H "User-Agent: ${PACKAGIST_PACKAGE}-packagist-bot (${GITHUB_REPO})" \
+            "https://packagist.org/api/update-package" \
+            -d "${payload}")
+
+          cat /tmp/packagist-response.json
+          echo ""
+
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "Packagist update queued (HTTP ${http_code})."
+            exit 0
+          fi
+
+          echo "Packagist update failed (HTTP ${http_code})."
+
+          if [ "$http_code" = "403" ]; then
+            echo ""
+            echo "403 checklist:"
+            echo "  1. PACKAGIST_USERNAME must match your packagist.org profile username exactly"
+            echo "  2. PACKAGIST_TOKEN must be a valid API token from packagist.org/profile/"
+            echo "  3. That Packagist account must be maintainer of ${PACKAGIST_PACKAGE}"
+            echo "  4. Prefer Main token if Safe token fails"
+            echo ""
+            echo "Alternative: enable GitHub webhook on Packagist (Settings → GitHub Hook)"
+            echo "  Payload URL: https://packagist.org/api/github?username=YOUR_PACKAGIST_USERNAME"
+          fi
+
+          exit 1

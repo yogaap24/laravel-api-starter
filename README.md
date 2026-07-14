@@ -162,10 +162,12 @@ Packagist shows *"This package is not auto-updated"* until a GitHub hook (or CI)
 
 Add repository secrets:
 
-- `PACKAGIST_USERNAME`
-- `PACKAGIST_TOKEN` (Packagist profile → API token)
+- `PACKAGIST_USERNAME` — your **packagist.org** username (may differ from GitHub username)
+- `PACKAGIST_TOKEN` — API token from [packagist.org/profile/](https://packagist.org/profile/) (Main or Safe token)
 
-On every push/tag, CI calls Packagist `update-package`.
+On every push/tag, CI calls Packagist `update-package` using Bearer auth.
+
+**403 error?** Check: username matches Packagist profile exactly, token is valid, account is maintainer of `kindharika/laravel-api-starter`. Or use Option A (GitHub webhook) — no secrets needed.
 
 Also add a **git tag** for each release (`2.0.0`, …) so Composer can resolve versions.
 
