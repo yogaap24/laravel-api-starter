@@ -6,6 +6,7 @@ namespace Kindharika\ApiStarter\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Support\AuthConfig;
 
 class ApiScaffold extends Command
 {
@@ -14,6 +15,8 @@ class ApiScaffold extends Command
                             {--only= : Comma-separated types (model,controller,service,request,migration,resource,route,openapi)}
                             {--migrate : Run migrations after generation}
                             {--force : Overwrite existing model/resource files}
+                            {--auth : Protect routes with Sanctum (auth:sanctum)}
+                            {--public : Public routes (no auth), even if auth.enabled}
                             {--no-route : Skip route generation}
                             {--no-openapi : Skip OpenAPI/Swagger generation}';
 
@@ -23,6 +26,14 @@ class ApiScaffold extends Command
     {
         $name = Str::studly($this->argument('name'));
         $force = $this->option('force') ? ['--force' => true] : [];
+        $authFlags = [];
+        if ($this->option('auth')) {
+            $authFlags['--auth'] = true;
+        }
+        if ($this->option('public')) {
+            $authFlags['--public'] = true;
+        }
+
         $only = collect($this->option('only') ? explode(',', (string) $this->option('only')) : [])
             ->map(fn ($item) => trim($item))
             ->filter()
@@ -35,7 +46,7 @@ class ApiScaffold extends Command
             'service' => ['api:make-service', ['name' => $name . 'Service', '--model' => $name]],
             'controller' => ['api:make-controller', ['name' => $name . 'Controller', '--model' => $name]],
             'resource' => ['api:make-resource', array_merge(['name' => $name], $force)],
-            'route' => ['api:make-route', ['name' => $name]],
+            'route' => ['api:make-route', array_merge(['name' => $name], $authFlags)],
             'openapi' => ['api:make-openapi', ['name' => $name]],
         ];
 
@@ -77,6 +88,10 @@ class ApiScaffold extends Command
         $docsUi = $baseUrl . '/' . trim((string) config('api-starter.openapi.docs_ui', '/api/docs'), '/');
         $docsJson = $baseUrl . '/' . trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
 
+        $protected = $this->option('public')
+            ? false
+            : ($this->option('auth') || AuthConfig::enabled());
+
         $this->newLine();
         $this->info("API resource scaffolding for [{$name}] completed.");
         $this->newLine();
@@ -86,6 +101,9 @@ class ApiScaffold extends Command
         $this->line("  GET    {$resourceUrl}/{id}");
         $this->line("  PUT    {$resourceUrl}/{id}");
         $this->line("  DELETE {$resourceUrl}/{id}");
+        $this->line('Auth: ' . ($protected
+            ? 'ON (auth:' . config('api-starter.auth.guard', 'sanctum') . ') — send Bearer token'
+            : 'OFF (public)'));
 
         if (! $this->option('no-openapi') && config('api-starter.openapi.enabled', true)) {
             $this->newLine();
@@ -95,8 +113,14 @@ class ApiScaffold extends Command
             $this->line('  File: storage/api-docs/openapi.json');
         }
 
+        if ($protected && ! class_exists(\Laravel\Sanctum\Sanctum::class)) {
+            $this->newLine();
+            $this->warn('Auth enabled but laravel/sanctum missing:');
+            $this->comment('  composer require laravel/sanctum');
+        }
+
         $this->newLine();
-        $this->comment('Tip: php artisan api:scaffold Post --migrate');
+        $this->comment('Tip: php artisan api:scaffold Post --auth --migrate');
 
         return self::SUCCESS;
     }

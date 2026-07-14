@@ -21,6 +21,7 @@ return [
         'resource' => app_path('Http/Resources'),
         'migration' => database_path('migrations'),
         'route' => base_path('routes/api-starter'),
+        'route_public' => base_path('routes/api-starter-public'),
         'openapi' => base_path('storage/api-docs'),
     ],
 
@@ -36,8 +37,27 @@ return [
     |--------------------------------------------------------------------------
     | Route Middleware
     |--------------------------------------------------------------------------
+    | Base middleware for all scaffolded routes. Auth is separate (see below).
     */
     'route_middleware' => ['api'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Optional Sanctum Auth (opt-in)
+    |--------------------------------------------------------------------------
+    | Off by default. When enabled, scaffolded CRUD routes use auth:sanctum.
+    | Host app must install laravel/sanctum:
+    |   composer require laravel/sanctum
+    |
+    | Per-resource: php artisan api:scaffold Post --auth
+    |               php artisan api:scaffold Post --public
+    */
+    'auth' => [
+        'enabled' => (bool) env('API_STARTER_AUTH', false),
+        'guard' => env('API_STARTER_AUTH_GUARD', 'sanctum'),
+        // null = ["auth:{guard}"]. Override with full middleware list if needed.
+        'middleware' => null,
+    ],
 
     /*
     |--------------------------------------------------------------------------

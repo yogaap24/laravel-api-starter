@@ -130,7 +130,33 @@ class PostController extends BaseApiController
 $posts = Post::datatable($request->all())->paginate(15);
 ```
 
-## Configuration
+## Optional Sanctum auth
+
+**Default: OFF** (public CRUD). Opt-in via config or per scaffold.
+
+```bash
+# host app
+composer require laravel/sanctum
+php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"
+```
+
+`.env`:
+```env
+API_STARTER_AUTH=true
+# API_STARTER_AUTH_GUARD=sanctum
+```
+
+Or per resource:
+```bash
+php artisan api:scaffold Post --auth      # protected
+php artisan api:scaffold Post --public    # public even if auth.enabled
+```
+
+Protected routes → `routes/api-starter/`  
+Public routes → `routes/api-starter-public/`  
+Docs (`/api/docs`) always public. Swagger shows Bearer Authorize when auth is on.
+
+User model should use `Laravel\Sanctum\HasApiTokens` (or extend `BaseAuthenticatable` + Sanctum trait).
 
 ```php
 return [
@@ -162,41 +188,6 @@ SemVer. Breaking changes → major bump. See [CHANGELOG.md](CHANGELOG.md).
 ```bash
 composer require kindharika/laravel-api-starter:^2.0
 ```
-
-## Packagist auto-update
-
-Packagist shows *"This package is not auto-updated"* until a GitHub hook (or CI) notifies it.
-
-**Option A — GitHub webhook (recommended)**
-
-1. Packagist → log in with GitHub → grant webhook permissions
-2. Or manual webhook on this repo:
-   - Payload URL: `https://packagist.org/api/github?username=YOUR_PACKAGIST_USERNAME`
-   - Content type: `application/json`
-   - Secret: Packagist API token
-   - Events: `push` only
-
-**Option B — GitHub Actions** (shipped as `.github/workflows/packagist.yml`)
-
-Add repository secrets:
-
-- `PACKAGIST_USERNAME` — your **packagist.org** username (may differ from GitHub username)
-- `PACKAGIST_TOKEN` — API token from [packagist.org/profile/](https://packagist.org/profile/) (Main or Safe token)
-
-On every push/tag, CI calls Packagist `update-package` using Bearer auth.
-
-**403 error?** Check: username matches Packagist profile exactly, token is valid, account is maintainer of `kindharika/laravel-api-starter`. Or use Option A (GitHub webhook) — no secrets needed.
-
-Also add a **git tag** for each release (`2.0.0`, …) so Composer can resolve versions.
-
-## Upgrade from 1.x
-
-Breaking: FCM removed. UUID default is now **7**.
-
-1. Remove FCM usage / `FCM_*` env
-2. `API_STARTER_UUID_VERSION=4` if you need old UUID v4 keys
-3. `composer require kindharika/laravel-api-starter:^2.0`
-4. Re-publish config
 
 ## Security notes
 

@@ -49,6 +49,9 @@
             "Kindharika\\ApiStarter\\Tests\\": "tests/"
         }
     },
+    "suggest": {
+        "laravel/sanctum": "Required when API_STARTER_AUTH=true or scaffolding with --auth"
+    },
     "extra": {
         "laravel": {
             "providers": [

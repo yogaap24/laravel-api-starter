@@ -17,6 +17,7 @@ use Kindharika\ApiStarter\Console\Commands\ApiMakeRoute;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeService;
 use Kindharika\ApiStarter\Console\Commands\ApiScaffold;
 use Kindharika\ApiStarter\Macros\DatatableMacro;
+use Kindharika\ApiStarter\Support\AuthConfig;
 
 class ApiStarterServiceProvider extends ServiceProvider
 {
@@ -59,8 +60,20 @@ class ApiStarterServiceProvider extends ServiceProvider
 
     protected function loadScaffoldedRoutes(): void
     {
-        $dir = config('api-starter.paths.route', base_path('routes/api-starter'));
+        $prefix = (string) config('api-starter.route_prefix', 'api');
 
+        $protectedDir = config('api-starter.paths.route', base_path('routes/api-starter'));
+        $publicDir = config('api-starter.paths.route_public', base_path('routes/api-starter-public'));
+
+        $this->loadRouteDirectory($protectedDir, $prefix, AuthConfig::protectedMiddleware());
+        $this->loadRouteDirectory($publicDir, $prefix, AuthConfig::publicMiddleware());
+    }
+
+    /**
+     * @param  list<string>  $middleware
+     */
+    protected function loadRouteDirectory(string $dir, string $prefix, array $middleware): void
+    {
         if (! is_dir($dir)) {
             return;
         }
@@ -68,8 +81,8 @@ class ApiStarterServiceProvider extends ServiceProvider
         $files = glob($dir . '/*.php') ?: [];
 
         foreach ($files as $file) {
-            Route::middleware(config('api-starter.route_middleware', ['api']))
-                ->prefix((string) config('api-starter.route_prefix', 'api'))
+            Route::middleware($middleware)
+                ->prefix($prefix)
                 ->group($file);
         }
     }
@@ -83,6 +96,7 @@ class ApiStarterServiceProvider extends ServiceProvider
         $docsJson = trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
         $docsUi = trim((string) config('api-starter.openapi.docs_ui', '/api/docs'), '/');
 
+        // Docs stay public — no auth middleware.
         Route::get($docsJson, function () {
             $path = config('api-starter.paths.openapi', base_path('storage/api-docs')) . '/openapi.json';
 
@@ -98,7 +112,6 @@ class ApiStarterServiceProvider extends ServiceProvider
                 return response()->json(['message' => 'Invalid OpenAPI JSON'], 500);
             }
 
-            // Relative server = same origin as Swagger UI (fixes localhost vs :8000 / CORS).
             $serverUrl = (string) config('api-starter.openapi.server_url', '/api');
             $spec['servers'] = [
                 [
@@ -107,14 +120,32 @@ class ApiStarterServiceProvider extends ServiceProvider
                 ],
             ];
 
+            // Always expose Bearer scheme (for --auth resources). Required when auth.enabled.
+            $spec['components'] ??= [];
+            $spec['components']['securitySchemes'] = array_merge(
+                $spec['components']['securitySchemes'] ?? [],
+                [
+                    'sanctum' => [
+                        'type' => 'http',
+                        'scheme' => 'bearer',
+                        'bearerFormat' => 'Token',
+                        'description' => 'Laravel Sanctum personal access token. Header: Authorization: Bearer {token}',
+                    ],
+                ]
+            );
+
+            if (AuthConfig::enabled()) {
+                $spec['security'] = [['sanctum' => []]];
+            }
+
             return response()->json($spec, 200, [], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
         })->name('api-starter.openapi.json');
 
         Route::get($docsUi, function () {
             $title = e((string) config('api-starter.openapi.title', 'API Documentation'));
-            // Relative URL — always same host/port as the page user opened.
             $specPath = '/' . trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
             $specUrl = e($specPath);
+            $persistAuth = AuthConfig::enabled() ? 'true' : 'false';
 
             $html = <<<HTML
 <!DOCTYPE html>
@@ -134,6 +165,7 @@ class ApiStarterServiceProvider extends ServiceProvider
       url: "{$specUrl}",
       dom_id: "#swagger-ui",
       deepLinking: true,
+      persistAuthorization: {$persistAuth},
       presets: [SwaggerUIBundle.presets.apis],
       layout: "BaseLayout"
     });
