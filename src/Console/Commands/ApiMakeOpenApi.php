@@ -32,7 +32,7 @@ class ApiMakeOpenApi extends Command
         $this->writeStub('openapi.stub.json', $path, [
             'title' => (string) config('api-starter.openapi.title', 'API Documentation'),
             'version' => (string) config('api-starter.openapi.version', '1.0.0'),
-            'serverUrl' => (string) config('api-starter.openapi.server_url', url('/api')),
+            'serverUrl' => (string) config('api-starter.openapi.server_url', '/api'),
             'modelClass' => $modelClass,
             'route' => $route,
         ]);
@@ -53,6 +53,8 @@ class ApiMakeOpenApi extends Command
             return;
         }
 
+        $serverUrl = (string) config('api-starter.openapi.server_url', '/api');
+
         $index = file_exists($indexPath)
             ? json_decode((string) file_get_contents($indexPath), true)
             : null;
@@ -65,13 +67,18 @@ class ApiMakeOpenApi extends Command
                     'version' => config('api-starter.openapi.version', '1.0.0'),
                 ],
                 'servers' => [
-                    ['url' => config('api-starter.openapi.server_url', url('/api'))],
+                    ['url' => $serverUrl, 'description' => 'Same origin (recommended)'],
                 ],
                 'tags' => [],
                 'paths' => [],
                 'components' => ['schemas' => []],
             ];
         }
+
+        // Keep servers on relative /api so Swagger UI never hits wrong host/port.
+        $index['servers'] = [
+            ['url' => $serverUrl, 'description' => 'Same origin (recommended)'],
+        ];
 
         $index['tags'] = array_values(array_filter(
             $index['tags'] ?? [],

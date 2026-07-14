@@ -92,14 +92,29 @@ class ApiStarterServiceProvider extends ServiceProvider
                 ], 404);
             }
 
-            return response()->file($path, [
-                'Content-Type' => 'application/json',
-            ]);
+            $spec = json_decode((string) File::get($path), true);
+
+            if (! is_array($spec)) {
+                return response()->json(['message' => 'Invalid OpenAPI JSON'], 500);
+            }
+
+            // Relative server = same origin as Swagger UI (fixes localhost vs :8000 / CORS).
+            $serverUrl = (string) config('api-starter.openapi.server_url', '/api');
+            $spec['servers'] = [
+                [
+                    'url' => $serverUrl,
+                    'description' => 'Same origin as docs',
+                ],
+            ];
+
+            return response()->json($spec, 200, [], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
         })->name('api-starter.openapi.json');
 
         Route::get($docsUi, function () {
             $title = e((string) config('api-starter.openapi.title', 'API Documentation'));
-            $specUrl = e(url(trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/')));
+            // Relative URL — always same host/port as the page user opened.
+            $specPath = '/' . trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
+            $specUrl = e($specPath);
 
             $html = <<<HTML
 <!DOCTYPE html>
