@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Kindharika\ApiStarter\Base;
 
 use Illuminate\Http\JsonResponse;

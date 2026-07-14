@@ -1,17 +1,18 @@
 # Laravel API Starter
 
-A Laravel package that brings the best of the `laravel-template` API architecture into a reusable, modern, and maintainable form. Supports **Laravel 11.x, 12.x, and 13.x**.
+Pure **API** package for Laravel **11 / 12 / 13**. Service layer, UUID models, datatable macro, one-command CRUD scaffold + OpenAPI (Swagger).
+
+Requires **PHP ^8.3**.
 
 ## Features
 
-- UUID-based models out of the box (v4 by default, configurable)
-- Unified JSON response envelope with pagination metadata
-- Service layer pattern (BaseService, BaseServiceInterface)
-- Base API Controller (BaseApiController)
-- Datatable macro (search, sort, filter, date-range on Eloquent Builder)
-- Firebase Cloud Messaging (FCM) infrastructure (Channel, Notification, Trait)
-- Artisan scaffold generators (model, service, controller, request, migration, resource)
-- Auto-discovery via Composer extras
+- UUID primary keys (default **v7**, configurable to 1 / 4)
+- JSON response envelope + pagination meta
+- Service layer (`BaseService`, `BaseServiceInterface`)
+- `BaseApiController` + API Resources
+- Eloquent `datatable()` macro (search / sort / filter / date range)
+- `php artisan api:scaffold Post` → model, migration, requests, service, controller, resource, **routes**, **OpenAPI**
+- Auto-discovery via Composer; routes under `routes/api-starter/` auto-loaded
 
 ## Installation
 
@@ -19,90 +20,51 @@ A Laravel package that brings the best of the `laravel-template` API architectur
 composer require kindharika/laravel-api-starter
 ```
 
-Or add via path repository for local development:
-
-```json
-{
-  "repositories": [
-    {
-      "type": "path",
-      "url": "./package/laravel-api-starter"
-    }
-  ]
-}
-```
-
-## Publish Config
+Publish config (optional):
 
 ```bash
 php artisan vendor:publish --tag=api-starter-config
+php artisan vendor:publish --tag=api-starter-stubs
 ```
 
-## Usage
-
-### Base classes
-
-Your models should extend `BaseModel`:
-
-```php
-use Kindharika\ApiStarter\Base\BaseModel;
-
-class Post extends BaseModel
-{
-    protected $table = 'posts';
-}
-```
-
-Your controllers should extend `BaseApiController`:
-
-```php
-use Kindharika\ApiStarter\Base\BaseApiController;
-
-class PostController extends BaseApiController
-{
-    // use sendSuccess() / sendError()
-}
-```
-
-Your services should extend `BaseService` and implement `BaseServiceInterface`:
-
-```php
-use Kindharika\ApiStarter\Base\BaseService;
-use Kindharika\ApiStarter\Base\BaseServiceInterface;
-
-class PostService extends BaseService implements BaseServiceInterface
-{
-    // implements dataTable, getById, create, update, delete
-}
-```
-
-### Datatable macro
-
-Once installed, the macro is available on any query builder:
-
-```php
-$posts = Post::datatable($request->all())->paginate(15);
-```
-
-### Scaffolding
-
-Generate a full resource scaffold with one command:
+## Scaffold (ready-to-use CRUD)
 
 ```bash
 php artisan api:scaffold Post
+# or with migration:
+php artisan api:scaffold Post --migrate
 ```
 
-This generates:
-- `app/Models/Post.php`
-- `app/Http/Controllers/PostController.php`
-- `app/Http/Requests/Post/StorePost.php`
-- `app/Http/Requests/Post/UpdatePost.php`
-- `app/Services/Post/PostService.php`
-- `app/Services/Post/PostServiceInterface.php`
-- `app/Http/Resources/PostResource.php`
-- Database migration
+Creates:
 
-Or generate individually:
+| Artifact | Path |
+|----------|------|
+| Model | `app/Models/Post.php` |
+| Controller | `app/Http/Controllers/Api/PostController.php` |
+| Requests | `app/Http/Requests/Post/StorePostRequest.php`, `UpdatePostRequest.php` |
+| Service | `app/Services/Post/PostService.php` (+ interface) |
+| Resource | `app/Http/Resources/PostResource.php` |
+| Migration | `database/migrations/*_create_posts_table.php` |
+| Route | `routes/api-starter/posts.php` (auto-loaded) |
+| OpenAPI | `storage/api-docs/posts.openapi.json` + merged `openapi.json` |
+
+Endpoints immediately available:
+
+```
+GET    /api/posts
+POST   /api/posts
+GET    /api/posts/{id}
+PUT    /api/posts/{id}
+DELETE /api/posts/{id}
+```
+
+Example body:
+
+```json
+{ "name": "Hello", "description": "World" }
+```
+
+Individual generators:
 
 ```bash
 php artisan api:make-model Post
@@ -111,58 +73,116 @@ php artisan api:make-service PostService --model=Post
 php artisan api:make-request Post
 php artisan api:make-migration Post
 php artisan api:make-resource Post
+php artisan api:make-route Post
+php artisan api:make-openapi Post
 ```
 
-### Firebase Notification
+### Swagger UI
 
-Use the trait in your service or notification class:
+Point Swagger UI / Scalar / Redoc at `storage/api-docs/openapi.json`. Controllers also include `@OA\*` annotations for `darkaonline/l5-swagger` if you add that package in the host app.
+
+## Usage
+
+### Model
 
 ```php
-use Kindharika\ApiStarter\Traits\FirebaseNotification;
+use Kindharika\ApiStarter\Base\BaseModel;
 
-class YourService
+class Post extends BaseModel
 {
-    use FirebaseNotification;
-
-    public function notify($user)
-    {
-        $this->sendNotification($user, 'Title", "Body", "INFO");
-    }
+    protected $table = 'posts';
+    protected $fillable = ['name', 'description'];
 }
+```
+
+### Controller
+
+```php
+use Kindharika\ApiStarter\Base\BaseApiController;
+
+class PostController extends BaseApiController
+{
+    // sendSuccess() / sendError()
+}
+```
+
+### Datatable
+
+```php
+$posts = Post::datatable($request->all())->paginate(15);
 ```
 
 ## Configuration
 
-`config/api-starter.php`:
-
 ```php
 return [
     'namespace' => 'App',
-    'uuid_version' => 4,
-    'fcm' => [
-        'enabled' => true,
-        'server_key' => env('FCM_SERVER_KEY'),
-        'endpoint' => 'https://fcm.googleapis.com/fcm/send',
-    ],
+    'uuid_version' => 7, // 1 | 4 | 7 — use 4 for 1.x behavior
+    'route_prefix' => 'api',
+    'route_middleware' => ['api'],
     'datatable' => [
         'per_page' => 15,
-        'default_sort_column' => 'created_at',
-        'default_sort_direction' => 'desc',
+        'search_operator' => 'auto', // auto | like | ilike
+    ],
+    'openapi' => [
+        'enabled' => true,
+        'title' => 'API Documentation',
+        'version' => '1.0.0',
     ],
 ];
 ```
 
-## Upgrading from Template
+## Versioning
 
-If you were previously using the `laravel-template` as-is, migrate by:
-1. `composer require kindharika/laravel-api-starter`
-2. Replace `AppModel` with `Kindharika\ApiStarter\Base\BaseModel`
-3. Replace `AppAuthenticatable` with `Kindharika\ApiStarter\Base\BaseAuthenticatable`
-4. Replace `AppService` with `Kindharika\ApiStarter\Base\BaseService`
-5. Replace `ApiController` with `Kindharika\ApiStarter\Base\BaseApiController`
-6. Replace `ResponseService` with `Kindharika\ApiStarter\Base\ResponseService`
-7. Remove `DatatableServiceProvider` — the macro is registered automatically now
-8. Use `api:scaffold` to generate new resources instead of manual stubs
+| Package | PHP | Laravel |
+|---------|-----|---------|
+| 2.x | ^8.3 | 11 / 12 / 13 |
+| 1.x | ^8.2 | 11 / 12 |
+
+SemVer. Breaking changes → major bump. See [CHANGELOG.md](CHANGELOG.md).
+
+```bash
+composer require kindharika/laravel-api-starter:^2.0
+```
+
+## Packagist auto-update
+
+Packagist shows *"This package is not auto-updated"* until a GitHub hook (or CI) notifies it.
+
+**Option A — GitHub webhook (recommended)**
+
+1. Packagist → log in with GitHub → grant webhook permissions
+2. Or manual webhook on this repo:
+   - Payload URL: `https://packagist.org/api/github?username=YOUR_PACKAGIST_USERNAME`
+   - Content type: `application/json`
+   - Secret: Packagist API token
+   - Events: `push` only
+
+**Option B — GitHub Actions** (shipped as `.github/workflows/packagist.yml`)
+
+Add repository secrets:
+
+- `PACKAGIST_USERNAME`
+- `PACKAGIST_TOKEN` (Packagist profile → API token)
+
+On every push/tag, CI calls Packagist `update-package`.
+
+Also add a **git tag** for each release (`2.0.0`, …) so Composer can resolve versions.
+
+## Upgrade from 1.x
+
+Breaking: FCM removed. UUID default is now **7**.
+
+1. Remove FCM usage / `FCM_*` env
+2. `API_STARTER_UUID_VERSION=4` if you need old UUID v4 keys
+3. `composer require kindharika/laravel-api-starter:^2.0`
+4. Re-publish config
+
+## Security notes
+
+- Scaffold FormRequests validate `name` / `description`; tighten `authorize()` with policies for real apps
+- Prefer `$fillable` on models (stubs do); avoid mass-assigning secrets
+- Datatable search escapes `%` / `_` wildcards; still whitelist `search_columns` in production
 
 ## License
 

@@ -1,53 +1,40 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Kindharika\ApiStarter\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Console\InteractsWithStubs;
 
 class ApiMakeRequest extends Command
 {
+    use InteractsWithStubs;
+
     protected $signature = 'api:make-request {name}';
+
     protected $description = 'Create store and update FormRequest classes for an API resource';
 
     public function handle(): int
     {
-        $name = Str::studly($this->argument('name'));
-
-        $this->createRequest('Store' . $name . 'Request', 'request.store.stub');
-        $this->createRequest('Update' . $name . 'Request', 'request.update.stub');
-
-        $this->info("API Requests [Store{$name}Request, Update{$name}Request] created successfully.");
-        return self::SUCCESS;
-    }
-
-    protected function createRequest(string $className, string $stubFile): void
-    {
-        $stub = $this->getStub($stubFile);
-        $namespace = config('api-starter.namespace', 'App');
         $modelClass = Str::studly($this->argument('name'));
+        $dir = config('api-starter.paths.request', app_path('Http/Requests')) . '/' . $modelClass;
 
-        $content = str_replace('{{namespace}}', $namespace, $stub);
-        $content = str_replace('{{modelClass}}', $modelClass, $content);
-        $content = str_replace('{{class}}', $className, $content);
+        $this->writeStub('request.store.stub', $dir . '/Store' . $modelClass . 'Request.php', [
+            'namespace' => $this->rootNamespace(),
+            'modelClass' => $modelClass,
+            'class' => 'Store' . $modelClass . 'Request',
+        ]);
 
-        $dir = app_path('Http/Requests/' . $modelClass);
-        $this->ensureDirectoryExists($dir);
+        $this->writeStub('request.update.stub', $dir . '/Update' . $modelClass . 'Request.php', [
+            'namespace' => $this->rootNamespace(),
+            'modelClass' => $modelClass,
+            'class' => 'Update' . $modelClass . 'Request',
+        ]);
 
-        $path = $dir . '/' . $className . '.php';
-        file_put_contents($path, $content);
-    }
+        $this->info("API Requests [Store{$modelClass}Request, Update{$modelClass}Request] created successfully.");
 
-    protected function getStub(string $file): string
-    {
-        $customPath = base_path('stubs/api-starter/' . $file);
-        return file_exists($customPath) ? file_get_contents($customPath) : file_get_contents(__DIR__ . '/../../../stubs/' . $file);
-    }
-
-    protected function ensureDirectoryExists(string $path): void
-    {
-        if (!is_dir($path)) {
-            mkdir($path, 0755, true);
-        }
+        return self::SUCCESS;
     }
 }

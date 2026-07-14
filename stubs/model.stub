@@ -1,6 +1,6 @@
 <?php
 
-namespace {{namespace}}\Models;
+namespace {{namespace}};
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Kindharika\ApiStarter\Base\BaseModel;
@@ -12,7 +12,8 @@ class {{class}} extends BaseModel
     protected $table = '{{table}}';
 
     protected $fillable = [
-        //
+        'name',
+        'description',
     ];
 
     protected $hidden = [

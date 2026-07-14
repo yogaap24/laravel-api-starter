@@ -1,0 +1,214 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "{{title}} — {{modelClass}}",
+    "version": "{{version}}"
+  },
+  "servers": [
+    {
+      "url": "{{serverUrl}}"
+    }
+  ],
+  "tags": [
+    {
+      "name": "{{modelClass}}",
+      "description": "CRUD endpoints for {{modelClass}}"
+    }
+  ],
+  "paths": {
+    "/{{route}}": {
+      "get": {
+        "tags": ["{{modelClass}}"],
+        "summary": "List {{modelClass}} resources",
+        "operationId": "list{{modelClass}}",
+        "parameters": [
+          {
+            "name": "entries",
+            "in": "query",
+            "schema": { "type": "integer", "default": 15 }
+          },
+          {
+            "name": "search_key",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "search_columns",
+            "in": "query",
+            "schema": { "type": "string", "example": "name,description" }
+          },
+          {
+            "name": "sort_column",
+            "in": "query",
+            "schema": { "type": "string", "default": "created_at" }
+          },
+          {
+            "name": "sort_type",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/{{modelClass}}" }
+                    },
+                    "meta": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["{{modelClass}}"],
+        "summary": "Create {{modelClass}}",
+        "operationId": "create{{modelClass}}",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/{{modelClass}}Store" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 201 },
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/{{modelClass}}" }
+                  }
+                }
+              }
+            }
+          },
+          "422": { "description": "Validation error" }
+        }
+      }
+    },
+    "/{{route}}/{id}": {
+      "get": {
+        "tags": ["{{modelClass}}"],
+        "summary": "Show {{modelClass}}",
+        "operationId": "show{{modelClass}}",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer" },
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/{{modelClass}}" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Not found" }
+        }
+      },
+      "put": {
+        "tags": ["{{modelClass}}"],
+        "summary": "Update {{modelClass}}",
+        "operationId": "update{{modelClass}}",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/{{modelClass}}Update" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated" },
+          "404": { "description": "Not found" },
+          "422": { "description": "Validation error" }
+        }
+      },
+      "delete": {
+        "tags": ["{{modelClass}}"],
+        "summary": "Delete {{modelClass}}",
+        "operationId": "delete{{modelClass}}",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Deleted" },
+          "404": { "description": "Not found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "{{modelClass}}": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "{{modelClass}}Store": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "nullable": true }
+        }
+      },
+      "{{modelClass}}Update": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "nullable": true }
+        }
+      }
+    }
+  }
+}

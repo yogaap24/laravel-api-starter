@@ -15,30 +15,39 @@ class {{class}} extends BaseService implements BaseServiceInterface
 
     public function dataTable(mixed $filter): mixed
     {
-        return {{modelClass}}::datatable($filter)->paginate($filter['entries'] ?? 15);
+        $perPage = (int) ($filter['entries'] ?? config('api-starter.datatable.per_page', 15));
+
+        return {{modelClass}}::query()
+            ->datatable(is_array($filter) ? $filter : [])
+            ->paginate($perPage);
     }
 
     public function getById(mixed $id): mixed
     {
-        return {{modelClass}}::findOrFail($id);
+        return {{modelClass}}::query()->findOrFail($id);
     }
 
     public function create(mixed $data): mixed
     {
-        return {{modelClass}}::create($data->validated());
+        $payload = method_exists($data, 'validated') ? $data->validated() : (array) $data;
+
+        return {{modelClass}}::query()->create($payload);
     }
 
     public function update(mixed $id, mixed $data): mixed
     {
-        $model = {{modelClass}}::findOrFail($id);
-        $model->update($data->validated());
-        return $model;
+        $model = {{modelClass}}::query()->findOrFail($id);
+        $payload = method_exists($data, 'validated') ? $data->validated() : (array) $data;
+        $model->update($payload);
+
+        return $model->fresh();
     }
 
     public function delete(mixed $id): mixed
     {
-        $model = {{modelClass}}::findOrFail($id);
+        $model = {{modelClass}}::query()->findOrFail($id);
         $model->delete();
+
         return $model;
     }
 }

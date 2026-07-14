@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Kindharika\ApiStarter\Base;
 
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -7,8 +9,12 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class ResponseService
 {
     private mixed $data;
+
     private string|array|null $message = null;
+
     private bool $success = false;
+
+    private int $code = 200;
 
     public function __construct(mixed $data = null)
     {
@@ -17,10 +23,8 @@ class ResponseService
 
     public function success(string|array|null $message = null, ?int $responseCode = null): object
     {
-        $message = empty($message) ? 'success' : $message;
-
-        $this->setMessage($message);
-        $this->setResponseCode($responseCode);
+        $this->setMessage(empty($message) ? 'success' : $message);
+        $this->code = $responseCode ?? 200;
         $this->success = true;
 
         return (object) $this->responseWrapper();
@@ -28,10 +32,8 @@ class ResponseService
 
     public function error(string|array|null $message = null, ?int $responseCode = null): object
     {
-        $message = empty($message) ? 'error' : $message;
-
-        $this->setMessage($message);
-        $this->setResponseCode($responseCode);
+        $this->setMessage(empty($message) ? 'error' : $message);
+        $this->code = $responseCode ?? 400;
         $this->success = false;
 
         return (object) $this->responseWrapper();
@@ -40,7 +42,7 @@ class ResponseService
     private function responseWrapper(): array
     {
         $response = [
-            'code'    => http_response_code(),
+            'code' => $this->code,
             'success' => $this->success,
             'message' => $this->message,
         ];
@@ -48,17 +50,20 @@ class ResponseService
         if ($this->data instanceof LengthAwarePaginator) {
             $paginated = $this->data->toArray();
             $response['data'] = $paginated['data'];
-            $response['meta'] = [
-                'current_page'   => $paginated['current_page'],
-                'from'           => $paginated['from'],
-                'last_page'      => $paginated['last_page'],
-                'next_page_url'  => $paginated['next_page_url'],
-                'path'           => $paginated['path'],
-                'per_page'       => $paginated['per_page'],
-                'prev_page_url'  => $paginated['prev_page_url'],
-                'to'             => $paginated['to'],
-                'total'          => $paginated['total'],
-            ];
+
+            if (config('api-starter.response.include_meta', true)) {
+                $response['meta'] = [
+                    'current_page' => $paginated['current_page'],
+                    'from' => $paginated['from'],
+                    'last_page' => $paginated['last_page'],
+                    'next_page_url' => $paginated['next_page_url'],
+                    'path' => $paginated['path'],
+                    'per_page' => $paginated['per_page'],
+                    'prev_page_url' => $paginated['prev_page_url'],
+                    'to' => $paginated['to'],
+                    'total' => $paginated['total'],
+                ];
+            }
         } else {
             $response['data'] = $this->data;
         }
@@ -73,13 +78,6 @@ class ResponseService
             $this->message = $extract[0] ?? 'success';
         } else {
             $this->message = $message;
-        }
-    }
-
-    private function setResponseCode(?int $responseCode): void
-    {
-        if (!empty($responseCode) && is_numeric($responseCode)) {
-            http_response_code($responseCode);
         }
     }
 }

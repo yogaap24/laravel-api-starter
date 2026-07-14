@@ -1,0 +1,31 @@
+name: Packagist Auto Update
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - '*'
+  release:
+    types: [published]
+
+jobs:
+  update-packagist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Packagist package update
+        env:
+          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+        run: |
+          if [ -z "$PACKAGIST_USERNAME" ] || [ -z "$PACKAGIST_TOKEN" ]; then
+            echo "Missing PACKAGIST_USERNAME or PACKAGIST_TOKEN secrets."
+            echo "Add them under repo Settings → Secrets, or configure the GitHub webhook on Packagist."
+            exit 1
+          fi
+
+          curl -fsS -X POST \
+            -H "Content-Type: application/json" \
+            "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
+            -d '{"repository":{"url":"https://github.com/yogaap24/laravel-api-starter"}}'

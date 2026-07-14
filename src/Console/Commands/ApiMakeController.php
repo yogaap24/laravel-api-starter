@@ -1,49 +1,43 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Kindharika\ApiStarter\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Console\InteractsWithStubs;
 
 class ApiMakeController extends Command
 {
+    use InteractsWithStubs;
+
     protected $signature = 'api:make-controller {name} {--model= : The model class}';
+
     protected $description = 'Create a new API controller extending BaseApiController';
 
     public function handle(): int
     {
         $name = Str::studly($this->argument('name'));
+        if (! str_ends_with($name, 'Controller')) {
+            $name .= 'Controller';
+        }
+
         $model = $this->option('model') ?? Str::beforeLast($name, 'Controller');
         $modelClass = Str::studly($model);
-        $serviceClass = $modelClass . 'Service';
+        $route = Str::kebab(Str::pluralStudly($modelClass));
 
-        $stub = $this->getStub('controller.api.stub');
+        $path = config('api-starter.paths.controller', app_path('Http/Controllers/Api')) . '/' . $name . '.php';
 
-        $namespace = config('api-starter.namespace', 'App');
-
-        $content = str_replace('{{namespace}}', $namespace, $stub);
-        $content = str_replace('{{class}}', $name, $content);
-        $content = str_replace('{{modelClass}}', $modelClass, $content);
-        $content = str_replace('{{serviceClass}}', $serviceClass, $content);
-
-        $path = app_path('Http/Controllers/' . $name . '.php');
-        $this->ensureDirectoryExists(dirname($path));
-        file_put_contents($path, $content);
+        $this->writeStub('controller.api.stub', $path, [
+            'namespace' => $this->rootNamespace(),
+            'class' => $name,
+            'modelClass' => $modelClass,
+            'route' => $route,
+        ]);
 
         $this->info("API Controller [{$name}] created successfully.");
+
         return self::SUCCESS;
-    }
-
-    protected function getStub(string $file): string
-    {
-        $customPath = base_path('stubs/api-starter/' . $file);
-        return file_exists($customPath) ? file_get_contents($customPath) : file_get_contents(__DIR__ . '/../../../stubs/' . $file);
-    }
-
-    protected function ensureDirectoryExists(string $path): void
-    {
-        if (!is_dir($path)) {
-            mkdir($path, 0755, true);
-        }
     }
 }

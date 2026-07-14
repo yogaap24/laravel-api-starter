@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Kindharika\ApiStarter\Base;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Auth;
 
 abstract class BaseService
 {
@@ -16,7 +17,7 @@ abstract class BaseService
     public function __construct(Model $model)
     {
         $this->model = $model;
-        $this->debug = config('app.debug', false);
+        $this->debug = (bool) config('app.debug', false);
     }
 
     public function getUserAuth(): mixed

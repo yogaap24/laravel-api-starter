@@ -1,0 +1,11 @@
+# Path-based exports
+/.gitattributes export-ignore
+/.github export-ignore
+/tests export-ignore
+/phpunit.xml export-ignore
+/phpunit.xml.dist export-ignore
+/.gitignore export-ignore
+
+# Normalize
+* text=auto eol=lf
+*.php text eol=lf

@@ -1,9 +1,10 @@
 <?php
 
-namespace {{namespace}}\Http\Controllers;
+namespace {{namespace}}\Http\Controllers\Api;
 
 use {{namespace}}\Http\Requests\{{modelClass}}\Store{{modelClass}}Request;
 use {{namespace}}\Http\Requests\{{modelClass}}\Update{{modelClass}}Request;
+use {{namespace}}\Http\Resources\{{modelClass}}Resource;
 use {{namespace}}\Services\{{modelClass}}\{{modelClass}}Service;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,41 +12,99 @@ use Kindharika\ApiStarter\Base\BaseApiController;
 
 class {{class}} extends BaseApiController
 {
-    protected {{modelClass}}Service $service;
-
-    public function __construct({{modelClass}}Service $service, Request $request)
-    {
-        $this->service = $service;
+    public function __construct(
+        protected {{modelClass}}Service $service,
+        Request $request,
+    ) {
         parent::__construct($request);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/{{route}}",
+     *     tags={"{{modelClass}}"},
+     *     summary="List {{modelClass}} resources",
+     *     @OA\Parameter(name="entries", in="query", @OA\Schema(type="integer", default=15)),
+     *     @OA\Parameter(name="search_key", in="query", @OA\Schema(type="string")),
+     *     @OA\Parameter(name="search_columns", in="query", @OA\Schema(type="string")),
+     *     @OA\Parameter(name="sort_column", in="query", @OA\Schema(type="string")),
+     *     @OA\Parameter(name="sort_type", in="query", @OA\Schema(type="string", enum={"asc","desc"})),
+     *     @OA\Response(response=200, description="Paginated list")
+     * )
+     */
     public function index(Request $request): JsonResponse
     {
-        $data = $this->service->dataTable($request->all());
-        return $this->sendSuccess($data, null, 200);
+        $paginator = $this->service->dataTable($request->all());
+        $paginator->through(fn ($item) => (new {{modelClass}}Resource($item))->resolve());
+
+        return $this->sendSuccess($paginator, null, 200);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/{{route}}",
+     *     tags={"{{modelClass}}"},
+     *     summary="Create {{modelClass}}",
+     *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/{{modelClass}}Store")),
+     *     @OA\Response(response=201, description="Created")
+     * )
+     */
     public function store(Store{{modelClass}}Request $request): JsonResponse
     {
         $data = $this->service->create($request);
-        return $this->sendSuccess($data, null, 201);
+
+        return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 201);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/{{route}}/{id}",
+     *     tags={"{{modelClass}}"},
+     *     summary="Show {{modelClass}}",
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Response(response=200, description="OK"),
+     *     @OA\Response(response=404, description="Not found")
+     * )
+     */
     public function show(string $id): JsonResponse
     {
         $data = $this->service->getById($id);
-        return $this->sendSuccess($data, null, 200);
+
+        return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 
+    /**
+     * @OA\Put(
+     *     path="/{{route}}/{id}",
+     *     tags={"{{modelClass}}"},
+     *     summary="Update {{modelClass}}",
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/{{modelClass}}Update")),
+     *     @OA\Response(response=200, description="Updated"),
+     *     @OA\Response(response=404, description="Not found")
+     * )
+     */
     public function update(Update{{modelClass}}Request $request, string $id): JsonResponse
     {
         $data = $this->service->update($id, $request);
-        return $this->sendSuccess($data, null, 200);
+
+        return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 
+    /**
+     * @OA\Delete(
+     *     path="/{{route}}/{id}",
+     *     tags={"{{modelClass}}"},
+     *     summary="Delete {{modelClass}}",
+     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string", format="uuid")),
+     *     @OA\Response(response=200, description="Deleted"),
+     *     @OA\Response(response=404, description="Not found")
+     * )
+     */
     public function destroy(string $id): JsonResponse
     {
         $data = $this->service->delete($id);
-        return $this->sendSuccess($data, null, 200);
+
+        return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 }

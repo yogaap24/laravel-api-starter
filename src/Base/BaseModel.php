@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Kindharika\ApiStarter\Base;
 
+use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Ramsey\Uuid\Uuid;
-use Exception;
 
 abstract class BaseModel extends Model
 {
@@ -15,10 +17,21 @@ abstract class BaseModel extends Model
 
     protected bool $keyIsUuid = true;
 
-    protected int $uuidVersion = 4;
+    /**
+     * UUID version used when generating primary keys.
+     * Falls back to config('api-starter.uuid_version', 7).
+     * Supported: 1, 4, 7.
+     */
+    protected ?int $uuidVersion = null;
 
     public bool $incrementing = false;
 
+    /**
+     * Prefer $fillable on concrete models. Empty guarded kept for BC with v1 apps
+     * that relied on mass-assignment of all columns — override with $fillable in new code.
+     *
+     * @var list<string>
+     */
     protected $guarded = [];
 
     protected $casts = [
@@ -41,10 +54,13 @@ abstract class BaseModel extends Model
 
     protected function generateUuid(): string
     {
-        return match ($this->uuidVersion) {
+        $version = $this->uuidVersion ?? (int) config('api-starter.uuid_version', 7);
+
+        return match ($version) {
             1 => Uuid::uuid1()->toString(),
             4 => Uuid::uuid4()->toString(),
-            default => throw new Exception("UUID version [{$this->uuidVersion}] not supported."),
+            7 => Uuid::uuid7()->toString(),
+            default => throw new Exception("UUID version [{$version}] not supported. Use 1, 4, or 7."),
         };
     }
 }

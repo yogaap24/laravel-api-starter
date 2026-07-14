@@ -1,0 +1,54 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Kindharika\ApiStarter\Console;
+
+trait InteractsWithStubs
+{
+    protected function getStub(string $file): string
+    {
+        $customPath = base_path('stubs/api-starter/' . $file);
+        $packagePath = dirname(__DIR__, 2) . '/stubs/' . $file;
+
+        if (file_exists($customPath)) {
+            return (string) file_get_contents($customPath);
+        }
+
+        return (string) file_get_contents($packagePath);
+    }
+
+    protected function getStubPath(string $file): string
+    {
+        $customPath = base_path('stubs/api-starter/' . $file);
+
+        return file_exists($customPath) ? $customPath : dirname(__DIR__, 2) . '/stubs/' . $file;
+    }
+
+    protected function ensureDirectoryExists(string $path): void
+    {
+        if (! is_dir($path)) {
+            mkdir($path, 0755, true);
+        }
+    }
+
+    /**
+     * @param  array<string, string>  $replacements
+     */
+    protected function writeStub(string $stubFile, string $destination, array $replacements): void
+    {
+        $content = $this->getStub($stubFile);
+
+        foreach ($replacements as $search => $replace) {
+            $content = str_replace('{{' . $search . '}}', $replace, $content);
+        }
+
+        $this->ensureDirectoryExists(dirname($destination));
+        file_put_contents($destination, $content);
+    }
+
+    protected function rootNamespace(): string
+    {
+        return (string) config('api-starter.namespace', 'App');
+    }
+}
