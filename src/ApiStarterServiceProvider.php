@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Kindharika\ApiStarter;
 
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeController;
@@ -53,6 +54,7 @@ class ApiStarterServiceProvider extends ServiceProvider
 
         (new DatatableMacro)->register();
         $this->loadScaffoldedRoutes();
+        $this->registerOpenApiRoutes();
     }
 
     protected function loadScaffoldedRoutes(): void
@@ -70,5 +72,64 @@ class ApiStarterServiceProvider extends ServiceProvider
                 ->prefix((string) config('api-starter.route_prefix', 'api'))
                 ->group($file);
         }
+    }
+
+    protected function registerOpenApiRoutes(): void
+    {
+        if (! config('api-starter.openapi.enabled', true)) {
+            return;
+        }
+
+        $docsJson = trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
+        $docsUi = trim((string) config('api-starter.openapi.docs_ui', '/api/docs'), '/');
+
+        Route::get($docsJson, function () {
+            $path = config('api-starter.paths.openapi', base_path('storage/api-docs')) . '/openapi.json';
+
+            if (! File::exists($path)) {
+                return response()->json([
+                    'message' => 'OpenAPI spec not found. Run: php artisan api:scaffold {Resource}',
+                ], 404);
+            }
+
+            return response()->file($path, [
+                'Content-Type' => 'application/json',
+            ]);
+        })->name('api-starter.openapi.json');
+
+        Route::get($docsUi, function () {
+            $title = e((string) config('api-starter.openapi.title', 'API Documentation'));
+            $specUrl = e(url(trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/')));
+
+            $html = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{$title}</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <style>body{margin:0} .topbar{display:none}</style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: "{$specUrl}",
+      dom_id: "#swagger-ui",
+      deepLinking: true,
+      presets: [SwaggerUIBundle.presets.apis],
+      layout: "BaseLayout"
+    });
+  </script>
+</body>
+</html>
+HTML;
+
+            return response($html, 200, [
+                'Content-Type' => 'text/html; charset=UTF-8',
+            ]);
+        })->name('api-starter.openapi.ui');
     }
 }

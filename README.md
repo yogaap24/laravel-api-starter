@@ -79,7 +79,25 @@ php artisan api:make-openapi Post
 
 ### Swagger UI
 
-Point Swagger UI / Scalar / Redoc at `storage/api-docs/openapi.json`. Controllers also include `@OA\*` annotations for `darkaonline/l5-swagger` if you add that package in the host app.
+After scaffold, package serves:
+
+- UI: `{APP_URL}/api/docs`
+- JSON: `{APP_URL}/api/docs/openapi.json`
+
+Example output:
+
+```
+CRUD endpoints:
+  GET    http://localhost/api/posts
+  POST   http://localhost/api/posts
+  ...
+
+Swagger / OpenAPI:
+  UI:   http://localhost/api/docs
+  JSON: http://localhost/api/docs/openapi.json
+```
+
+Controllers also include `@OA\*` annotations for `darkaonline/l5-swagger` if you prefer that package.
 
 ## Usage
 

@@ -13,7 +13,12 @@ abstract class BaseModel extends Model
 {
     use SoftDeletes;
 
-    protected string $keyType = 'string';
+    /**
+     * Must remain untyped — parent Model::$keyType has no type declaration.
+     *
+     * @var string
+     */
+    protected $keyType = 'string';
 
     protected bool $keyIsUuid = true;
 
@@ -24,7 +29,12 @@ abstract class BaseModel extends Model
      */
     protected ?int $uuidVersion = null;
 
-    public bool $incrementing = false;
+    /**
+     * Must remain untyped — parent Model::$incrementing has no type declaration.
+     *
+     * @var bool
+     */
+    public $incrementing = false;
 
     /**
      * Prefer $fillable on concrete models. Empty guarded kept for BC with v1 apps

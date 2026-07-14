@@ -84,5 +84,12 @@ return [
         'title' => env('API_STARTER_OPENAPI_TITLE', 'API Documentation'),
         'version' => env('API_STARTER_OPENAPI_VERSION', '1.0.0'),
         'server_url' => env('APP_URL', 'http://localhost') . '/api',
+        /*
+         * HTTP paths served by the package (relative to APP_URL).
+         * docs_ui  → Swagger UI page
+         * docs_json → OpenAPI JSON
+         */
+        'docs_ui' => env('API_STARTER_DOCS_UI', '/api/docs'),
+        'docs_json' => env('API_STARTER_DOCS_JSON', '/api/docs/openapi.json'),
     ],
 ];

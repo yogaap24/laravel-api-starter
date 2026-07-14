@@ -72,11 +72,30 @@ class ApiScaffold extends Command
 
         $route = Str::kebab(Str::pluralStudly($name));
         $prefix = trim((string) config('api-starter.route_prefix', 'api'), '/');
+        $baseUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
+        $resourceUrl = "{$baseUrl}/{$prefix}/{$route}";
+        $docsUi = $baseUrl . '/' . trim((string) config('api-starter.openapi.docs_ui', '/api/docs'), '/');
+        $docsJson = $baseUrl . '/' . trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
 
         $this->newLine();
         $this->info("API resource scaffolding for [{$name}] completed.");
-        $this->line("CRUD endpoints ready at: /{$prefix}/{$route}");
-        $this->line('OpenAPI: storage/api-docs/openapi.json (+ per-resource file)');
+        $this->newLine();
+        $this->line('CRUD endpoints:');
+        $this->line("  GET    {$resourceUrl}");
+        $this->line("  POST   {$resourceUrl}");
+        $this->line("  GET    {$resourceUrl}/{id}");
+        $this->line("  PUT    {$resourceUrl}/{id}");
+        $this->line("  DELETE {$resourceUrl}/{id}");
+
+        if (! $this->option('no-openapi') && config('api-starter.openapi.enabled', true)) {
+            $this->newLine();
+            $this->line('Swagger / OpenAPI:');
+            $this->line("  UI:   {$docsUi}");
+            $this->line("  JSON: {$docsJson}");
+            $this->line('  File: storage/api-docs/openapi.json');
+        }
+
+        $this->newLine();
         $this->comment('Tip: php artisan api:scaffold Post --migrate');
 
         return self::SUCCESS;
