@@ -34,6 +34,12 @@ class ApiScaffold extends Command
             $authFlags['--public'] = true;
         }
 
+        $openapiFlags = [];
+        $willProtect = $this->option('auth') || (AuthConfig::enabled() && ! $this->option('public'));
+        if ($willProtect) {
+            $openapiFlags['--auth'] = true;
+        }
+
         $only = collect($this->option('only') ? explode(',', (string) $this->option('only')) : [])
             ->map(fn ($item) => trim($item))
             ->filter()
@@ -47,7 +53,7 @@ class ApiScaffold extends Command
             'controller' => ['api:make-controller', ['name' => $name . 'Controller', '--model' => $name]],
             'resource' => ['api:make-resource', array_merge(['name' => $name], $force)],
             'route' => ['api:make-route', array_merge(['name' => $name], $authFlags)],
-            'openapi' => ['api:make-openapi', ['name' => $name]],
+            'openapi' => ['api:make-openapi', array_merge(['name' => $name], $openapiFlags)],
         ];
 
         if ($this->option('no-route')) {

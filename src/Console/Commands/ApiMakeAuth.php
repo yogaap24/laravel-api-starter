@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Kindharika\ApiStarter\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
+use Kindharika\ApiStarter\Support\UserModelPatcher;
 
 class ApiMakeAuth extends Command
 {
     use InteractsWithStubs;
 
     protected $signature = 'api:make-auth
-                            {--force : Overwrite existing auth files}';
+                            {--force : Overwrite existing auth files}
+                            {--skip-user-patch : Do not auto-add HasApiTokens to User model}';
 
     protected $description = 'Generate API auth endpoints: register, login, forgot/reset password, logout, me (Sanctum)';
 
@@ -20,6 +23,15 @@ class ApiMakeAuth extends Command
     {
         $namespace = $this->rootNamespace();
         $force = (bool) $this->option('force');
+
+        if (! $this->option('skip-user-patch')) {
+            $result = UserModelPatcher::ensureHasApiTokens();
+            match ($result['status']) {
+                'patched' => $this->info($result['message']),
+                'ok' => $this->line($result['message']),
+                default => $this->warn($result['message']),
+            };
+        }
 
         $files = [
             [
@@ -88,6 +100,7 @@ class ApiMakeAuth extends Command
         $this->line("  GET  {$baseUrl}/{$prefix}/auth/me");
         $this->newLine();
         $this->line("Swagger: {$docsUi}");
+        $this->comment('Authorize → paste TOKEN ONLY (without "Bearer "), e.g. 1|xxxxx');
         $this->newLine();
 
         if (! class_exists(\Laravel\Sanctum\Sanctum::class)) {
@@ -96,10 +109,6 @@ class ApiMakeAuth extends Command
             $this->comment('  php artisan vendor:publish --provider="Laravel\\Sanctum\\SanctumServiceProvider"');
             $this->comment('  php artisan migrate');
         }
-
-        $this->warn('Ensure User model uses HasApiTokens:');
-        $this->comment('  use Laravel\\Sanctum\\HasApiTokens;');
-        $this->comment('  class User extends Authenticatable { use HasApiTokens; ... }');
 
         return self::SUCCESS;
     }

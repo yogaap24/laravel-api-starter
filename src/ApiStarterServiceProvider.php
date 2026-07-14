@@ -16,6 +16,7 @@ use Kindharika\ApiStarter\Console\Commands\ApiMakeRequest;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeResource;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeRoute;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeService;
+use Kindharika\ApiStarter\Console\Commands\ApiRemove;
 use Kindharika\ApiStarter\Console\Commands\ApiScaffold;
 use Kindharika\ApiStarter\Macros\DatatableMacro;
 use Kindharika\ApiStarter\Support\AuthConfig;
@@ -35,6 +36,7 @@ class ApiStarterServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ApiScaffold::class,
+                ApiRemove::class,
                 ApiMakeAuth::class,
                 ApiMakeController::class,
                 ApiMakeMigration::class,
@@ -137,10 +139,42 @@ class ApiStarterServiceProvider extends ServiceProvider
                         'type' => 'http',
                         'scheme' => 'bearer',
                         'bearerFormat' => 'Token',
-                        'description' => 'Laravel Sanctum personal access token. Header: Authorization: Bearer {token}',
+                        'description' => 'Paste token ONLY — no "Bearer " prefix. Example: 1|xxxxx',
                     ],
                 ]
             );
+
+            // Attach security to paths that live under routes/api-starter-protected
+            // so Swagger UI actually sends Authorization header (fixes 401).
+            $protectedDir = config('api-starter.paths.route_protected', base_path('routes/api-starter-protected'));
+            $protectedRoutes = [];
+            if (is_dir($protectedDir)) {
+                foreach (glob($protectedDir . '/*.php') ?: [] as $file) {
+                    $protectedRoutes[] = basename($file, '.php');
+                }
+            }
+
+            foreach ($spec['paths'] ?? [] as $pathKey => $operations) {
+                if (! is_array($operations)) {
+                    continue;
+                }
+
+                $segment = ltrim(explode('/', trim($pathKey, '/'))[0] ?? '', '/');
+                $needsAuth = in_array($segment, $protectedRoutes, true)
+                    || str_starts_with($pathKey, '/auth/logout')
+                    || str_starts_with($pathKey, '/auth/me');
+
+                if (! $needsAuth) {
+                    continue;
+                }
+
+                foreach ($operations as $method => $operation) {
+                    if (! is_array($operation) || in_array($method, ['parameters', 'summary', 'description', 'servers'], true)) {
+                        continue;
+                    }
+                    $spec['paths'][$pathKey][$method]['security'] = [['sanctum' => []]];
+                }
+            }
 
             if (AuthConfig::enabled()) {
                 $spec['security'] = [['sanctum' => []]];
@@ -153,7 +187,6 @@ class ApiStarterServiceProvider extends ServiceProvider
             $title = e((string) config('api-starter.openapi.title', 'API Documentation'));
             $specPath = '/' . trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
             $specUrl = e($specPath);
-            $persistAuth = AuthConfig::enabled() ? 'true' : 'false';
 
             $html = <<<HTML
 <!DOCTYPE html>
@@ -173,7 +206,7 @@ class ApiStarterServiceProvider extends ServiceProvider
       url: "{$specUrl}",
       dom_id: "#swagger-ui",
       deepLinking: true,
-      persistAuthorization: {$persistAuth},
+      persistAuthorization: true,
       presets: [SwaggerUIBundle.presets.apis],
       layout: "BaseLayout"
     });

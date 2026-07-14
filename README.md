@@ -166,16 +166,30 @@ php artisan api:make-auth
 | POST | `/api/auth/logout` | Bearer |
 | GET | `/api/auth/me` | Bearer |
 
-User model must use `HasApiTokens`:
+User model gets `HasApiTokens` **automatically** via `api:make-auth` (skip with `--skip-user-patch`).
 
-```php
-use Laravel\Sanctum\HasApiTokens;
+Swagger **Authorize**: paste token **only** (no `Bearer ` prefix):
 
-class User extends Authenticatable
-{
-    use HasApiTokens, HasFactory, Notifiable;
-}
 ```
+1|1qlzDsGAKirfga9dnDrvHDq8temeczVyB6d1T9LMe01fb8c8
+```
+
+If protected module still 401, regenerate OpenAPI security:
+
+```bash
+php artisan api:make-openapi CobaAuth --auth
+php artisan optimize:clear
+```
+
+### Remove a module
+
+```bash
+php artisan api:remove Post
+php artisan api:remove CobaAuth --force
+php artisan api:remove Post --keep-migration
+```
+
+Deletes model, controller, service, requests, resource, routes, OpenAPI. Migration deleted unless `--keep-migration` (rollback manually if already applied).
 
 ## Configuration
 
