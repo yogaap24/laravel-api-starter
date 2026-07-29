@@ -1,0 +1,31 @@
+<?php
+
+namespace {{namespace}}\Http\Requests\Auth;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
+
+class SocialTokenRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'access_token' => ['nullable', 'string'],
+            'id_token' => ['nullable', 'string'],
+        ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if (! $this->filled('access_token') && ! $this->filled('id_token')) {
+                $validator->errors()->add('access_token', 'Provide access_token or id_token.');
+            }
+        });
+    }
+}

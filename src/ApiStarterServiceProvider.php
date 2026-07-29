@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Kindharika\ApiStarter;
 
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -16,9 +17,19 @@ use Kindharika\ApiStarter\Console\Commands\ApiMakeRequest;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeResource;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeRoute;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeService;
+use Kindharika\ApiStarter\Console\Commands\ApiMakeSso;
 use Kindharika\ApiStarter\Console\Commands\ApiRemove;
 use Kindharika\ApiStarter\Console\Commands\ApiScaffold;
+use Kindharika\ApiStarter\Console\Commands\ModuleList;
+use Kindharika\ApiStarter\Console\Commands\ModuleMake;
+use Kindharika\ApiStarter\Console\Commands\ModuleRemove;
+use Kindharika\ApiStarter\Console\Commands\ModuleScaffold;
+use Kindharika\ApiStarter\Http\Middleware\EnsurePermission;
+use Kindharika\ApiStarter\Http\Middleware\EnsureRole;
 use Kindharika\ApiStarter\Macros\DatatableMacro;
+use Kindharika\ApiStarter\Modules\ModuleManifest;
+use Kindharika\ApiStarter\Modules\ModulePaths;
+use Kindharika\ApiStarter\Rbac\RbacManager;
 use Kindharika\ApiStarter\Support\AuthConfig;
 
 class ApiStarterServiceProvider extends ServiceProvider
@@ -29,15 +40,19 @@ class ApiStarterServiceProvider extends ServiceProvider
             __DIR__ . '/../config/api-starter.php',
             'api-starter'
         );
+
+        $this->app->singleton(RbacManager::class);
     }
 
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                // Existing api:* — unchanged
                 ApiScaffold::class,
                 ApiRemove::class,
                 ApiMakeAuth::class,
+                ApiMakeSso::class,
                 ApiMakeController::class,
                 ApiMakeMigration::class,
                 ApiMakeModel::class,
@@ -46,6 +61,11 @@ class ApiStarterServiceProvider extends ServiceProvider
                 ApiMakeResource::class,
                 ApiMakeRoute::class,
                 ApiMakeService::class,
+                // Modular module:* — separate namespace
+                ModuleMake::class,
+                ModuleScaffold::class,
+                ModuleRemove::class,
+                ModuleList::class,
             ]);
 
             $this->publishes([
@@ -57,9 +77,20 @@ class ApiStarterServiceProvider extends ServiceProvider
             ], 'api-starter-stubs');
         }
 
+        $this->registerMiddlewareAliases();
         (new DatatableMacro)->register();
         $this->loadScaffoldedRoutes();
+        $this->loadModuleRoutes();
+        $this->loadModuleMigrations();
         $this->registerOpenApiRoutes();
+    }
+
+    protected function registerMiddlewareAliases(): void
+    {
+        /** @var Router $router */
+        $router = $this->app->make(Router::class);
+        $router->aliasMiddleware('api-starter.permission', EnsurePermission::class);
+        $router->aliasMiddleware('api-starter.role', EnsureRole::class);
     }
 
     protected function loadScaffoldedRoutes(): void
@@ -77,6 +108,73 @@ class ApiStarterServiceProvider extends ServiceProvider
         $this->loadRouteDirectory($publicDir, $prefix, AuthConfig::publicMiddleware());
         $this->loadRouteDirectory($legacyPublic, $prefix, AuthConfig::publicMiddleware());
         $this->loadRouteDirectory($protectedDir, $prefix, AuthConfig::protectedMiddleware());
+    }
+
+    /**
+     * Auto-load module routes. Does not affect existing api-starter routes.
+     */
+    protected function loadModuleRoutes(): void
+    {
+        if (! config('api-starter.modules.enabled', true)) {
+            return;
+        }
+
+        $rootPrefix = trim((string) config('api-starter.route_prefix', 'api'), '/');
+
+        foreach (ModulePaths::list() as $module) {
+            $manifest = ModuleManifest::load($module);
+
+            if ($manifest !== null && ! $manifest->enabled) {
+                continue;
+            }
+
+            $moduleDir = ModulePaths::module($module);
+            $modulePrefix = $rootPrefix . '/' . ModulePaths::prefix($module);
+
+            $publicFile = $moduleDir . '/Routes/api.php';
+            if (is_file($publicFile)) {
+                Route::middleware(AuthConfig::publicMiddleware())
+                    ->prefix($modulePrefix)
+                    ->group($publicFile);
+            }
+
+            $protectedFile = $moduleDir . '/Routes/api-protected.php';
+            if (is_file($protectedFile)) {
+                $middleware = AuthConfig::protectedMiddleware();
+
+                // Optional module-level RBAC from module.json
+                if ($manifest !== null && config('api-starter.rbac.enabled', false)) {
+                    foreach ($manifest->permissions as $permission) {
+                        $middleware[] = 'api-starter.permission:' . $permission;
+                    }
+                    foreach ($manifest->roles as $role) {
+                        $middleware[] = 'api-starter.role:' . $role;
+                    }
+                }
+
+                Route::middleware(array_values(array_unique($middleware)))
+                    ->prefix($modulePrefix)
+                    ->group($protectedFile);
+            }
+        }
+    }
+
+    protected function loadModuleMigrations(): void
+    {
+        if (! config('api-starter.modules.enabled', true)) {
+            return;
+        }
+
+        if (! config('api-starter.modules.load_migrations', true)) {
+            return;
+        }
+
+        foreach (ModulePaths::list() as $module) {
+            $path = ModulePaths::module($module) . '/Database/Migrations';
+            if (is_dir($path)) {
+                $this->loadMigrationsFrom($path);
+            }
+        }
     }
 
     /**
@@ -154,15 +252,43 @@ class ApiStarterServiceProvider extends ServiceProvider
                 }
             }
 
+            // Module protected route prefixes (e.g. blog/posts)
+            $moduleProtected = [];
+            if (config('api-starter.modules.enabled', true)) {
+                foreach (ModulePaths::list() as $module) {
+                    $file = ModulePaths::module($module) . '/Routes/api-protected.php';
+                    if (! is_file($file)) {
+                        continue;
+                    }
+                    $prefix = ModulePaths::prefix($module);
+                    $contents = (string) file_get_contents($file);
+                    if (preg_match_all("/apiResource\\('([^']+)'/", $contents, $matches)) {
+                        foreach ($matches[1] as $resource) {
+                            $moduleProtected[] = $prefix . '/' . $resource;
+                        }
+                    }
+                }
+            }
+
             foreach ($spec['paths'] ?? [] as $pathKey => $operations) {
                 if (! is_array($operations)) {
                     continue;
                 }
 
                 $segment = ltrim(explode('/', trim($pathKey, '/'))[0] ?? '', '/');
+                $trimmed = ltrim($pathKey, '/');
                 $needsAuth = in_array($segment, $protectedRoutes, true)
                     || str_starts_with($pathKey, '/auth/logout')
                     || str_starts_with($pathKey, '/auth/me');
+
+                if (! $needsAuth) {
+                    foreach ($moduleProtected as $mp) {
+                        if ($trimmed === $mp || str_starts_with($trimmed, $mp . '/')) {
+                            $needsAuth = true;
+                            break;
+                        }
+                    }
+                }
 
                 if (! $needsAuth) {
                     continue;

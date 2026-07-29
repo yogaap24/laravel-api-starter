@@ -120,4 +120,72 @@ return [
         'docs_ui' => env('API_STARTER_DOCS_UI', '/api/docs'),
         'docs_json' => env('API_STARTER_DOCS_JSON', '/api/docs/openapi.json'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Modular API (NEW — opt-in structure, commands use module:* namespace)
+    |--------------------------------------------------------------------------
+    | Existing api:* scaffolds under routes/api-starter* stay unchanged.
+    | Modules live in app/Modules/{Name} and auto-load Routes/api.php +
+    | Routes/api-protected.php under /{route_prefix}/{module-prefix}/...
+    |
+    |   php artisan module:make Blog
+    |   php artisan module:scaffold Blog Post --auth
+    |   php artisan module:list
+    |   php artisan module:remove Blog Post
+    */
+    'modules' => [
+        'enabled' => (bool) env('API_STARTER_MODULES', true),
+        'path' => app_path('Modules'),
+        'namespace' => 'Modules',
+        'load_migrations' => (bool) env('API_STARTER_MODULES_MIGRATE', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | RBAC Adapter (opt-in — works WITH other packages)
+    |--------------------------------------------------------------------------
+    | Does NOT replace Spatie / custom RBAC. When enabled, middleware
+    | api-starter.permission / api-starter.role delegate to a driver:
+    |
+    |   spatie  → hasRole / hasPermissionTo / hasAnyPermission on User
+    |   gate    → Laravel Gate abilities (+ optional role→ability map)
+    |   custom  → your class implementing RbacCheckerInterface
+    |   null    → fail-closed (deny) when RBAC enabled
+    |
+    | When rbac.enabled=false, permission/role middleware are no-ops
+    | (auth middleware still applies if route is protected).
+    |
+    | Host: composer require spatie/laravel-permission  (optional)
+    */
+    'rbac' => [
+        'enabled' => (bool) env('API_STARTER_RBAC', false),
+        'driver' => env('API_STARTER_RBAC_DRIVER', 'spatie'), // spatie|gate|custom|null
+        'custom' => [
+            'checker' => env('API_STARTER_RBAC_CHECKER'), // FQCN implementing RbacCheckerInterface
+        ],
+        'gate' => [
+            // Map role name → Gate ability, e.g. ['admin' => 'access-admin']
+            'role_abilities' => [],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | SSO / Social Login (opt-in — any Socialite provider)
+    |--------------------------------------------------------------------------
+    |   php artisan api:make-sso --providers=google,github
+    |
+    | Host: composer require laravel/socialite laravel/sanctum
+    | Configure config/services.php for each provider.
+    | Allowlist below — unknown {provider} → 422.
+    */
+    'social' => [
+        'enabled' => (bool) env('API_STARTER_SOCIAL', false),
+        'stateless' => (bool) env('API_STARTER_SOCIAL_STATELESS', true),
+        'providers' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('API_STARTER_SOCIAL_PROVIDERS', 'google'))
+        ))),
+    ],
 ];

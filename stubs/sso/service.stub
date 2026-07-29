@@ -1,0 +1,177 @@
+<?php
+
+namespace {{namespace}}\Services\Auth;
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Support\SocialConfig;
+use Laravel\Socialite\Facades\Socialite;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+
+class SocialAuthService
+{
+    public function redirect(string $provider): RedirectResponse
+    {
+        $driver = Socialite::driver($provider);
+
+        if (SocialConfig::stateless() && method_exists($driver, 'stateless')) {
+            $driver = $driver->stateless();
+        }
+
+        return $driver->redirect();
+    }
+
+    public function handleCallback(string $provider): ?array
+    {
+        $driver = Socialite::driver($provider);
+
+        if (SocialConfig::stateless() && method_exists($driver, 'stateless')) {
+            $driver = $driver->stateless();
+        }
+
+        $socialUser = $driver->user();
+
+        return $this->issueToken($provider, [
+            'id' => (string) $socialUser->getId(),
+            'email' => $socialUser->getEmail(),
+            'name' => $socialUser->getName() ?: $socialUser->getNickname() ?: 'User',
+            'avatar' => $socialUser->getAvatar(),
+            'token' => $socialUser->token ?? null,
+        ]);
+    }
+
+    /**
+     * @param  array{access_token?: string, id_token?: string}  $payload
+     */
+    public function loginWithToken(string $provider, array $payload): ?array
+    {
+        $driver = Socialite::driver($provider);
+
+        if (method_exists($driver, 'stateless')) {
+            $driver = $driver->stateless();
+        }
+
+        $accessToken = $payload['access_token'] ?? null;
+
+        // Google (and some providers): prefer userFromToken when access_token present.
+        if (is_string($accessToken) && $accessToken !== '') {
+            $socialUser = $driver->userFromToken($accessToken);
+
+            return $this->issueToken($provider, [
+                'id' => (string) $socialUser->getId(),
+                'email' => $socialUser->getEmail(),
+                'name' => $socialUser->getName() ?: $socialUser->getNickname() ?: 'User',
+                'avatar' => $socialUser->getAvatar(),
+                'token' => $accessToken,
+            ]);
+        }
+
+        // Optional Google id_token path via tokeninfo (no secret leak — server-side verify).
+        $idToken = $payload['id_token'] ?? null;
+        if ($provider === 'google' && is_string($idToken) && $idToken !== '') {
+            return $this->loginWithGoogleIdToken($idToken);
+        }
+
+        return null;
+    }
+
+    protected function loginWithGoogleIdToken(string $idToken): ?array
+    {
+        $clientId = config('services.google.client_id');
+
+        $response = \Illuminate\Support\Facades\Http::asForm()
+            ->get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $idToken,
+            ]);
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $data = $response->json();
+
+        if (! is_array($data) || empty($data['sub'])) {
+            return null;
+        }
+
+        // Audience check — prevent token substitution from other apps.
+        if (is_string($clientId) && $clientId !== '' && ($data['aud'] ?? null) !== $clientId) {
+            return null;
+        }
+
+        if (($data['email_verified'] ?? 'true') === 'false' || ($data['email_verified'] ?? true) === false) {
+            return null;
+        }
+
+        return $this->issueToken('google', [
+            'id' => (string) $data['sub'],
+            'email' => $data['email'] ?? null,
+            'name' => $data['name'] ?? ($data['email'] ?? 'User'),
+            'avatar' => $data['picture'] ?? null,
+            'token' => null,
+        ]);
+    }
+
+    /**
+     * @param  array{id: string, email: ?string, name: string, avatar: ?string, token: ?string}  $profile
+     */
+    protected function issueToken(string $provider, array $profile): ?array
+    {
+        if (empty($profile['email']) && empty($profile['id'])) {
+            return null;
+        }
+
+        $userModel = config('api-starter.auth.user_model', '{{namespace}}\Models\User');
+
+        return DB::transaction(function () use ($provider, $profile, $userModel) {
+            $account = DB::table('social_accounts')
+                ->where('provider', $provider)
+                ->where('provider_id', $profile['id'])
+                ->first();
+
+            if ($account) {
+                $user = $userModel::query()->findOrFail($account->user_id);
+            } else {
+                $user = null;
+
+                if (! empty($profile['email'])) {
+                    $user = $userModel::query()->where('email', $profile['email'])->first();
+                }
+
+                if ($user === null) {
+                    $user = $userModel::query()->create([
+                        'name' => $profile['name'],
+                        'email' => $profile['email'] ?? ($provider . '_' . $profile['id'] . '@sso.local'),
+                        'password' => Hash::make(Str::random(64)),
+                    ]);
+                }
+
+                DB::table('social_accounts')->insert([
+                    'id' => (string) Str::uuid(),
+                    'user_id' => $user->getKey(),
+                    'provider' => $provider,
+                    'provider_id' => $profile['id'],
+                    'avatar' => $profile['avatar'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            if (! method_exists($user, 'createToken')) {
+                throw new \RuntimeException('User model must use HasApiTokens (Sanctum). Run api:make-auth first.');
+            }
+
+            $token = $user->createToken(
+                config('api-starter.auth.token_name', 'api-token')
+            )->plainTextToken;
+
+            return [
+                'user' => $user,
+                'token' => $token,
+                'token_type' => 'Bearer',
+                'provider' => $provider,
+            ];
+        });
+    }
+}

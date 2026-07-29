@@ -9,6 +9,12 @@
         "starter",
         "scaffold",
         "crud",
+        "modular",
+        "module",
+        "rbac",
+        "sso",
+        "socialite",
+        "google",
         "openapi",
         "swagger",
         "datatable",
@@ -50,7 +56,9 @@
         }
     },
     "suggest": {
-        "laravel/sanctum": "Required when API_STARTER_AUTH=true or scaffolding with --auth"
+        "laravel/sanctum": "Required when API_STARTER_AUTH=true, scaffolding with --auth, or after SSO login",
+        "laravel/socialite": "Required for api:make-sso (Google + any OAuth provider)",
+        "spatie/laravel-permission": "Optional RBAC driver when API_STARTER_RBAC=true (driver=spatie)"
     },
     "extra": {
         "laravel": {

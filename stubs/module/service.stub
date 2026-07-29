@@ -1,0 +1,53 @@
+<?php
+
+namespace {{namespace}}\Services\{{modelClass}};
+
+use {{namespace}}\Models\{{modelClass}};
+use Kindharika\ApiStarter\Base\BaseService;
+use Kindharika\ApiStarter\Base\BaseServiceInterface;
+
+class {{class}} extends BaseService implements BaseServiceInterface
+{
+    public function __construct({{modelClass}} $model)
+    {
+        parent::__construct($model);
+    }
+
+    public function dataTable(mixed $filter): mixed
+    {
+        $perPage = (int) ($filter['entries'] ?? config('api-starter.datatable.per_page', 15));
+
+        return {{modelClass}}::query()
+            ->datatable(is_array($filter) ? $filter : [])
+            ->paginate($perPage);
+    }
+
+    public function getById(mixed $id): mixed
+    {
+        return {{modelClass}}::query()->findOrFail($id);
+    }
+
+    public function create(mixed $data): mixed
+    {
+        $payload = method_exists($data, 'validated') ? $data->validated() : (array) $data;
+
+        return {{modelClass}}::query()->create($payload);
+    }
+
+    public function update(mixed $id, mixed $data): mixed
+    {
+        $model = {{modelClass}}::query()->findOrFail($id);
+        $payload = method_exists($data, 'validated') ? $data->validated() : (array) $data;
+        $model->update($payload);
+
+        return $model->fresh();
+    }
+
+    public function delete(mixed $id): mixed
+    {
+        $model = {{modelClass}}::query()->findOrFail($id);
+        $model->delete();
+
+        return $model;
+    }
+}

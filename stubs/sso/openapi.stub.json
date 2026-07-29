@@ -1,0 +1,87 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "{{title}} — SSO",
+    "version": "{{version}}"
+  },
+  "servers": [{ "url": "{{serverUrl}}" }],
+  "tags": [
+    {
+      "name": "SSO",
+      "description": "Social / SSO login"
+    }
+  ],
+  "paths": {
+    "/auth/sso/{provider}": {
+      "post": {
+        "tags": ["SSO"],
+        "summary": "Exchange social token for API token",
+        "operationId": "ssoToken",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "enum": {{providersEnum}} }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "access_token": { "type": "string" },
+                  "id_token": { "type": "string", "description": "Google ID token (optional)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Sanctum token issued" },
+          "401": { "description": "SSO failed" },
+          "422": { "description": "Invalid provider or payload" }
+        }
+      }
+    },
+    "/auth/sso/{provider}/redirect": {
+      "get": {
+        "tags": ["SSO"],
+        "summary": "Redirect to provider OAuth",
+        "operationId": "ssoRedirect",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "enum": {{providersEnum}} }
+          }
+        ],
+        "responses": {
+          "302": { "description": "Redirect" }
+        }
+      }
+    },
+    "/auth/sso/{provider}/callback": {
+      "get": {
+        "tags": ["SSO"],
+        "summary": "OAuth callback — returns API token",
+        "operationId": "ssoCallback",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "enum": {{providersEnum}} }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Sanctum token issued" },
+          "401": { "description": "SSO failed" }
+        }
+      }
+    }
+  }
+}

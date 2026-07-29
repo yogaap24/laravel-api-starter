@@ -1,0 +1,85 @@
+<?php
+
+namespace {{namespace}}\Http\Controllers\Api;
+
+use {{namespace}}\Http\Requests\Auth\SocialTokenRequest;
+use {{namespace}}\Services\Auth\SocialAuthService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Kindharika\ApiStarter\Base\BaseApiController;
+use Kindharika\ApiStarter\Support\SocialConfig;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+
+class SocialAuthController extends BaseApiController
+{
+    public function __construct(
+        protected SocialAuthService $service,
+        Request $request,
+    ) {
+        parent::__construct($request);
+    }
+
+    /**
+     * API-first SSO: exchange provider access_token / id_token for Sanctum token.
+     * Providers: {{providersList}}
+     */
+    public function token(SocialTokenRequest $request, string $provider): JsonResponse
+    {
+        if (! SocialConfig::isAllowed($provider)) {
+            return $this->sendError(null, 'Unsupported SSO provider.', 422);
+        }
+
+        try {
+            $result = $this->service->loginWithToken(
+                $provider,
+                $request->validated()
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->sendError(null, 'SSO authentication failed.', 401);
+        }
+
+        if ($result === null) {
+            return $this->sendError(null, 'SSO authentication failed.', 401);
+        }
+
+        return $this->sendSuccess($result, 'Logged in via SSO', 200);
+    }
+
+    public function redirect(string $provider): JsonResponse|RedirectResponse
+    {
+        if (! SocialConfig::isAllowed($provider)) {
+            return $this->sendError(null, 'Unsupported SSO provider.', 422);
+        }
+
+        try {
+            return $this->service->redirect($provider);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->sendError(null, 'SSO redirect failed.', 500);
+        }
+    }
+
+    public function callback(Request $request, string $provider): JsonResponse
+    {
+        if (! SocialConfig::isAllowed($provider)) {
+            return $this->sendError(null, 'Unsupported SSO provider.', 422);
+        }
+
+        try {
+            $result = $this->service->handleCallback($provider);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->sendError(null, 'SSO callback failed.', 401);
+        }
+
+        if ($result === null) {
+            return $this->sendError(null, 'SSO authentication failed.', 401);
+        }
+
+        return $this->sendSuccess($result, 'Logged in via SSO', 200);
+    }
+}

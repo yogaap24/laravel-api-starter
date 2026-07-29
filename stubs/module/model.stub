@@ -1,0 +1,26 @@
+<?php
+
+namespace {{namespace}};
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Kindharika\ApiStarter\Base\BaseModel;
+
+class {{class}} extends BaseModel
+{
+    use HasFactory;
+
+    protected $table = '{{table}}';
+
+    protected $fillable = [
+        'name',
+        'description',
+    ];
+
+    protected $hidden = [
+        //
+    ];
+
+    protected $casts = [
+        //
+    ];
+}

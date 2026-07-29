@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-07-29
+
+### Added
+- **Modular API** via separate `module:*` commands (does not replace `api:*`)
+  - `module:make`, `module:scaffold`, `module:remove`, `module:list`
+  - Modules under `app/Modules/{Name}` with auto-loaded routes + migrations
+- **RBAC adapter** (opt-in): drivers `spatie` | `gate` | `custom` | `null`
+  - Middleware aliases `api-starter.permission` / `api-starter.role`
+  - Compatible with `spatie/laravel-permission` or custom checker
+  - `--permission=` / `--role=` on `module:scaffold`
+- **SSO / Social login** via `api:make-sso` (Google + any Socialite provider)
+  - API-first token exchange + optional redirect/callback
+  - Provider allowlist (`API_STARTER_SOCIAL_PROVIDERS`)
+  - `social_accounts` migration stub
+
+### Changed
+- Config gains `modules`, `rbac`, `social` sections (defaults keep 2.0 behavior)
+- Composer `suggest`: `laravel/socialite`, `spatie/laravel-permission`
+
+### Backward compatibility
+- All existing `api:scaffold`, `api:make-*`, `api:remove`, `api:make-auth` unchanged
+- Existing `routes/api-starter*` loading unchanged
+- New features are additive / opt-in
+
 ## [2.0.0] - 2026-07-14
 
 ### Added
@@ -42,5 +66,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release: BaseModel, BaseService, BaseApiController, datatable macro, scaffold commands, FCM helpers
 
+[2.1.0]: https://github.com/yogaap24/laravel-api-starter/compare/2.0.0...2.1.0
 [2.0.0]: https://github.com/yogaap24/laravel-api-starter/compare/1.0.0...2.0.0
 [1.0.0]: https://github.com/yogaap24/laravel-api-starter/releases/tag/1.0.0

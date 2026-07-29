@@ -1,0 +1,10 @@
+<?php
+
+use {{namespace}}\Http\Controllers\Api\SocialAuthController;
+use Illuminate\Support\Facades\Route;
+
+// SSO / social login — providers allowlisted in api-starter.social.providers
+// Default providers: {{providersList}}
+Route::post('auth/sso/{provider}', [SocialAuthController::class, 'token']);
+Route::get('auth/sso/{provider}/redirect', [SocialAuthController::class, 'redirect']);
+Route::get('auth/sso/{provider}/callback', [SocialAuthController::class, 'callback']);
