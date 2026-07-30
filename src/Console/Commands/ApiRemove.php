@@ -43,13 +43,18 @@ class ApiRemove extends Command
             config('api-starter.paths.route', base_path('routes/api-starter')) . "/{$route}.php",
             config('api-starter.paths.route_protected', base_path('routes/api-starter-protected')) . "/{$route}.php",
             base_path("routes/api-starter-public/{$route}.php"),
-            config('api-starter.paths.openapi', base_path('storage/api-docs')) . "/{$route}.openapi.json",
         ];
 
         foreach ($candidates as $path) {
             if (is_file($path) && File::delete($path)) {
                 $deleted[] = $path;
             }
+        }
+
+        // Drop legacy fragment if still present
+        $legacyOpenApi = config('api-starter.paths.openapi', base_path('storage/api-docs')) . "/{$route}.openapi.json";
+        if (is_file($legacyOpenApi) && File::delete($legacyOpenApi)) {
+            $deleted[] = $legacyOpenApi;
         }
 
         // Empty request/service directories
@@ -120,6 +125,14 @@ class ApiRemove extends Command
             $indexPath,
             json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL
         );
+
+        // Purge legacy *.openapi.json fragments — only openapi.json remains
+        $dir = dirname($indexPath);
+        foreach (glob($dir . '/*.openapi.json') ?: [] as $file) {
+            if (is_file($file)) {
+                File::delete($file);
+            }
+        }
 
         $this->info('Updated storage/api-docs/openapi.json');
     }

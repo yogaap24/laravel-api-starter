@@ -35,13 +35,23 @@ trait InteractsWithStubs
     /**
      * @param  array<string, string>  $replacements
      */
-    protected function writeStub(string $stubFile, string $destination, array $replacements): void
+    protected function renderStub(string $stubFile, array $replacements): string
     {
         $content = $this->getStub($stubFile);
 
         foreach ($replacements as $search => $replace) {
             $content = str_replace('{{' . $search . '}}', $replace, $content);
         }
+
+        return $content;
+    }
+
+    /**
+     * @param  array<string, string>  $replacements
+     */
+    protected function writeStub(string $stubFile, string $destination, array $replacements): void
+    {
+        $content = $this->renderStub($stubFile, $replacements);
 
         $this->ensureDirectoryExists(dirname($destination));
         file_put_contents($destination, $content);

@@ -6,11 +6,13 @@ namespace Kindharika\ApiStarter\Console\Commands;
 
 use Illuminate\Console\Command;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
+use Kindharika\ApiStarter\Console\ManagesOpenApiDocument;
 use Kindharika\ApiStarter\Support\SocialConfig;
 
 class ApiMakeSso extends Command
 {
     use InteractsWithStubs;
+    use ManagesOpenApiDocument;
 
     protected $signature = 'api:make-sso
                             {--force : Overwrite existing SSO files}
@@ -130,71 +132,30 @@ class ApiMakeSso extends Command
             return;
         }
 
-        $dir = config('api-starter.paths.openapi', base_path('storage/api-docs'));
-        $path = $dir . '/sso.openapi.json';
+        unset($force);
 
-        if (is_file($path) && ! $force) {
-            $this->warn("Skip OpenAPI (exists): {$path}");
-        } else {
-            $this->writeStub('sso/openapi.stub.json', $path, [
-                'title' => (string) config('api-starter.openapi.title', 'API Documentation'),
-                'version' => (string) config('api-starter.openapi.version', '1.0.0'),
-                'serverUrl' => (string) config('api-starter.openapi.server_url', '/api'),
-                'providersEnum' => json_encode($providers),
-            ]);
-            $this->info("Created: {$path}");
-        }
+        $fragment = $this->renderOpenApiStub('sso/openapi.stub.json', [
+            'title' => (string) config('api-starter.openapi.title', 'API Documentation'),
+            'version' => (string) config('api-starter.openapi.version', '1.0.0'),
+            'serverUrl' => (string) config('api-starter.openapi.server_url', '/api'),
+            'providersEnum' => json_encode($providers),
+        ]);
 
-        $this->mergeOpenApi($dir, $path);
-    }
+        if ($fragment === null) {
+            $this->error('Failed to render SSO OpenAPI stub.');
 
-    protected function mergeOpenApi(string $dir, string $resourcePath): void
-    {
-        if (! is_file($resourcePath)) {
             return;
         }
 
-        $resource = json_decode((string) file_get_contents($resourcePath), true);
-        if (! is_array($resource)) {
-            return;
-        }
-
-        $indexPath = $dir . '/openapi.json';
-        $index = is_file($indexPath)
-            ? json_decode((string) file_get_contents($indexPath), true)
-            : null;
-
-        if (! is_array($index)) {
-            $index = [
-                'openapi' => '3.0.3',
-                'info' => [
-                    'title' => config('api-starter.openapi.title', 'API Documentation'),
-                    'version' => config('api-starter.openapi.version', '1.0.0'),
-                ],
-                'servers' => [['url' => config('api-starter.openapi.server_url', '/api')]],
-                'tags' => [],
-                'paths' => [],
-                'components' => ['schemas' => [], 'securitySchemes' => []],
-            ];
-        }
-
-        $index['tags'] = array_values(array_filter(
-            $index['tags'] ?? [],
-            fn ($tag) => ($tag['name'] ?? null) !== 'SSO'
-        ));
-        $index['tags'][] = [
-            'name' => 'SSO',
-            'description' => 'Social / SSO login (Google + Socialite providers)',
-        ];
-
-        foreach ($resource['paths'] ?? [] as $pathKey => $pathValue) {
-            $index['paths'][$pathKey] = $pathValue;
-        }
-
-        file_put_contents(
-            $indexPath,
-            json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL
+        $this->mergeFragmentIntoOpenApi(
+            fragment: $fragment,
+            tagNamesToReplace: ['SSO'],
+            pathBasesToReplace: ['auth/sso'],
+            newTagName: 'SSO',
+            newTagDescription: 'Social / SSO login (Google + Socialite providers)',
         );
+
+        $this->info('OpenAPI updated: ' . $this->openApiIndexPath());
     }
 
     /**

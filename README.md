@@ -56,7 +56,7 @@ php artisan api:scaffold Post --migrate
 | Resource | `app/Http/Resources/PostResource.php` |
 | Migration | `database/migrations/*_create_posts_table.php` |
 | Route | `routes/api-starter/posts.php` |
-| OpenAPI | `storage/api-docs/posts.openapi.json` (+ merged `openapi.json`) |
+| OpenAPI | `storage/api-docs/openapi.json` only (single Swagger doc) |
 
 ```
 GET/POST       /api/posts
@@ -242,13 +242,14 @@ Drivers: `database` | `spatie` | `null`. Trait: `Kindharika\ApiStarter\Audit\Aud
 
 ## Swagger
 
-After scaffold:
+Satu file saja: `storage/api-docs/openapi.json`.
 
 - UI: `{APP_URL}/api/docs`
 - JSON: `{APP_URL}/api/docs/openapi.json`
 
-Schemas (`Model` / `ModelStore` / `ModelUpdate`) follow `--columns`.  
-Controllers also get `@OA\*` for `darkaonline/l5-swagger`.
+Scaffold / auth / SSO / module merge paths ke file itu — **tidak** buat `module-*.openapi.json` atau `posts.openapi.json`.
+
+Schemas ikut `--columns`. Controllers juga dapat `@OA\*` untuk `darkaonline/l5-swagger`.
 
 ```bash
 php artisan api:make-openapi Post --columns='title:string,body:text?'

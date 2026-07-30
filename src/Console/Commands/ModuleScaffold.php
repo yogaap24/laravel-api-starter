@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Kindharika\ApiStarter\Console\BuildsColumnReplacements;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
+use Kindharika\ApiStarter\Console\ManagesOpenApiDocument;
 use Kindharika\ApiStarter\Modules\ModulePaths;
 use Kindharika\ApiStarter\Support\AuthConfig;
 use Kindharika\ApiStarter\Support\ColumnSchema;
@@ -16,6 +17,7 @@ class ModuleScaffold extends Command
 {
     use BuildsColumnReplacements;
     use InteractsWithStubs;
+    use ManagesOpenApiDocument;
 
     protected $signature = 'module:scaffold
                             {module : Module name (also resource name if {name} omitted)}
@@ -379,20 +381,11 @@ class ModuleScaffold extends Command
         $pathKey = $primary || $routeUri === ''
             ? $modulePrefix
             : $modulePrefix . '/' . $routeUri;
-        $dir = config('api-starter.paths.openapi', base_path('storage/api-docs'));
-        $this->ensureDirectoryExists($dir);
 
-        $path = $primary
-            ? $dir . '/module-' . $modulePrefix . '.openapi.json'
-            : $dir . '/module-' . $modulePrefix . '-' . $routeUri . '.openapi.json';
-
-        $this->purgeStaleModuleOpenApi($dir, $modulePrefix, $primary, $name);
-
-        // One Swagger tag — avoid "Course/Course" looking like two resources
         $tag = $primary ? $module : ($module . '/' . $name);
         $opId = $primary ? $module : ($module . $name);
 
-        $this->writeStub('module/openapi.stub.json', $path, [
+        $fragment = $this->renderOpenApiStub('module/openapi.stub.json', [
             'title' => (string) config('api-starter.openapi.title', 'API Documentation'),
             'version' => (string) config('api-starter.openapi.version', '1.0.0'),
             'serverUrl' => (string) config('api-starter.openapi.server_url', '/api'),
@@ -404,133 +397,39 @@ class ModuleScaffold extends Command
             'searchColumnsExample' => $schema->openApiSearchColumnsExample(),
         ]);
 
-        $spec = json_decode((string) file_get_contents($path), true);
-        if (is_array($spec)) {
-            $spec['components'] ??= [];
-            $spec['components']['schemas'] ??= [];
-            $spec['components']['schemas'][$name] = $schema->openApiResourceSchema();
-            $spec['components']['schemas'][$name . 'Store'] = $schema->openApiStoreSchema();
-            $spec['components']['schemas'][$name . 'Update'] = $schema->openApiUpdateSchema();
+        if ($fragment === null) {
+            $this->error('Failed to render module OpenAPI stub.');
 
-            if ($protected) {
-                $spec['components']['securitySchemes']['sanctum'] = [
-                    'type' => 'http',
-                    'scheme' => 'bearer',
-                    'bearerFormat' => 'Token',
-                    'description' => 'Paste token ONLY (no "Bearer " prefix).',
-                ];
-                foreach ($spec['paths'] ?? [] as $p => $ops) {
-                    if (! is_array($ops)) {
-                        continue;
-                    }
-                    foreach ($ops as $method => $op) {
-                        if (! is_array($op) || in_array($method, ['parameters', 'summary', 'description', 'servers'], true)) {
-                            continue;
-                        }
-                        $spec['paths'][$p][$method]['security'] = [['sanctum' => []]];
-                    }
-                }
-            }
-
-            file_put_contents($path, json_encode($spec, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
-        }
-
-        $this->mergeOpenApi($dir, $path, $tag, $modulePrefix, $pathKey, $primary, $name);
-        $this->info("OpenAPI: {$path}");
-    }
-
-    protected function purgeStaleModuleOpenApi(
-        string $dir,
-        string $modulePrefix,
-        bool $primary,
-        string $name,
-    ): void {
-        $plural = Str::kebab(Str::pluralStudly($name));
-        $singular = Str::kebab(Str::studly($name));
-        $stale = [];
-        if ($primary) {
-            $stale[] = $dir . "/module-{$modulePrefix}-{$plural}.openapi.json";
-            $stale[] = $dir . "/module-{$modulePrefix}-{$singular}.openapi.json";
-        }
-        foreach ($stale as $file) {
-            if (is_file($file)) {
-                unlink($file);
-            }
-        }
-    }
-
-    protected function mergeOpenApi(
-        string $dir,
-        string $resourcePath,
-        string $tag,
-        string $modulePrefix,
-        string $pathKey,
-        bool $primary,
-        string $name,
-    ): void {
-        $resource = json_decode((string) file_get_contents($resourcePath), true);
-        if (! is_array($resource)) {
             return;
         }
 
-        $indexPath = $dir . '/openapi.json';
-        $index = is_file($indexPath)
-            ? json_decode((string) file_get_contents($indexPath), true)
-            : null;
+        $fragment['components'] ??= [];
+        $fragment['components']['schemas'] ??= [];
+        $fragment['components']['schemas'][$name] = $schema->openApiResourceSchema();
+        $fragment['components']['schemas'][$name . 'Store'] = $schema->openApiStoreSchema();
+        $fragment['components']['schemas'][$name . 'Update'] = $schema->openApiUpdateSchema();
 
-        if (! is_array($index)) {
-            $index = [
-                'openapi' => '3.0.3',
-                'info' => [
-                    'title' => config('api-starter.openapi.title', 'API Documentation'),
-                    'version' => config('api-starter.openapi.version', '1.0.0'),
-                ],
-                'servers' => [['url' => config('api-starter.openapi.server_url', '/api')]],
-                'tags' => [],
-                'paths' => [],
-                'components' => ['schemas' => [], 'securitySchemes' => []],
-            ];
-        }
-
-        $legacyTags = array_values(array_unique(array_filter([
-            $tag,
-            $modulePrefix,
-            Str::studly($modulePrefix) . '/' . Str::studly($modulePrefix),
-            $name . '/' . $name,
-        ])));
-
-        $index['tags'] = array_values(array_filter(
-            $index['tags'] ?? [],
-            static fn ($t): bool => ! in_array($t['name'] ?? null, $legacyTags, true)
-        ));
-        $index['tags'][] = ['name' => $tag, 'description' => "Module resource {$tag}"];
-
-        $staleBases = [$pathKey];
+        $pathBases = [$pathKey];
         if ($primary) {
-            $staleBases[] = $modulePrefix . '/' . Str::kebab(Str::pluralStudly($name));
-            $staleBases[] = $modulePrefix . '/' . Str::kebab(Str::studly($name));
+            $pathBases[] = $modulePrefix . '/' . Str::kebab(Str::pluralStudly($name));
+            $pathBases[] = $modulePrefix . '/' . Str::kebab(Str::studly($name));
         }
 
-        foreach (array_keys($index['paths'] ?? []) as $existingPath) {
-            $trimmed = ltrim((string) $existingPath, '/');
-            foreach ($staleBases as $base) {
-                if ($trimmed === $base || str_starts_with($trimmed, $base . '/')) {
-                    unset($index['paths'][$existingPath]);
-                    break;
-                }
-            }
-        }
+        $this->mergeFragmentIntoOpenApi(
+            fragment: $fragment,
+            tagNamesToReplace: [
+                $tag,
+                $modulePrefix,
+                $module . '/' . $name,
+                $name . '/' . $name,
+            ],
+            pathBasesToReplace: $pathBases,
+            schemaKeysToReplace: [$name, $name . 'Store', $name . 'Update'],
+            newTagName: $tag,
+            newTagDescription: "Module resource {$tag}",
+            attachSanctumToFragmentPaths: $protected,
+        );
 
-        foreach ($resource['paths'] ?? [] as $k => $v) {
-            $index['paths'][$k] = $v;
-        }
-        foreach ($resource['components']['schemas'] ?? [] as $k => $v) {
-            $index['components']['schemas'][$k] = $v;
-        }
-        foreach ($resource['components']['securitySchemes'] ?? [] as $k => $v) {
-            $index['components']['securitySchemes'][$k] = $v;
-        }
-
-        file_put_contents($indexPath, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+        $this->info('OpenAPI updated: ' . $this->openApiIndexPath());
     }
 }
