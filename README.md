@@ -268,19 +268,29 @@ Drivers: `database` | `spatie` | `null`. Trait: `Kindharika\ApiStarter\Audit\Aud
 
 ## Swagger
 
-Satu file saja: `storage/api-docs/openapi.json`.
+Satu file: `storage/api-docs/openapi.json`
 
 - UI: `{APP_URL}/api/docs`
 - JSON: `{APP_URL}/api/docs/openapi.json`
 
-Scaffold / auth / SSO / module merge paths ke file itu — **tidak** buat `module-*.openapi.json` atau `posts.openapi.json`.
+Scaffold / auth / SSO / module merge ke file itu — **tidak** buat fragment `*.openapi.json`.
 
 Schemas ikut `--columns`. Controllers juga dapat `@OA\*` untuk `darkaonline/l5-swagger`.
 
 ```bash
 php artisan api:make-openapi Post --columns='title:string,body:text?'
 php artisan api:make-openapi CobaAuth --auth
+
+# Leftover schema/properties setelah remove?
+php artisan api:openapi-prune --prefix=course --force
+php artisan api:openapi-prune --schema=Course --force
+php artisan api:openapi-prune --orphans --force
+
+# Module sudah hilang dari disk — bersihkan OpenAPI saja:
+php artisan module:remove Course --openapi-only --force
 ```
+
+Hard refresh Swagger UI setelah prune (cache browser).
 
 ---
 
@@ -294,12 +304,13 @@ php artisan api:remove Post --keep-migration
 # Module resource
 php artisan module:remove Blog Post
 
-# Whole module (also deletes related database/migrations)
+# Whole module (also deletes related database/migrations + OpenAPI paths/tags/schemas)
 php artisan module:remove Blog --force
 php artisan module:remove Blog --force --keep-migration
+php artisan module:remove Blog --openapi-only --force   # OpenAPI only
 ```
 
-Deletes model, controller, service, requests, resource, routes, OpenAPI.
+Deletes model, controller, service, requests, resource, routes, OpenAPI (paths + tags + schemas).
 Migrations deleted unless `--keep-migration`. If already migrated → `migrate:rollback` manually.
 
 ---

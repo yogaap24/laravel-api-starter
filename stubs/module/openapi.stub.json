@@ -29,7 +29,22 @@
           {"name": "sort_type", "in": "query", "schema": {"type": "string", "enum": ["asc", "desc"]}}
         ],
         "responses": {
-          "200": {"description": "Paginated list"}
+          "200": {
+            "description": "Paginated list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/{{modelClass}}"}
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       },
       "post": {
@@ -59,7 +74,14 @@
           {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
         ],
         "responses": {
-          "200": {"description": "OK"},
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/{{modelClass}}"}
+              }
+            }
+          },
           "404": {"description": "Not found"}
         }
       },

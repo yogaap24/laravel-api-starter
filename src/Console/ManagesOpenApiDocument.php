@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Kindharika\ApiStarter\Console;
 
+use Illuminate\Support\Str;
+
 /**
  * Single-document OpenAPI helpers — only storage/api-docs/openapi.json is kept.
  */
@@ -89,6 +91,273 @@ trait ManagesOpenApiDocument
     }
 
     /**
+     * Remove paths (by prefix), tags, schemas — also harvest $ref + infer Model/Store/Update
+     * from matching paths, then drop orphan schemas/tags no longer referenced.
+     *
+     * @param  list<string>  $pathBases
+     * @param  list<string>  $tags
+     * @param  list<string>  $schemas
+     * @return array{paths: int, tags: int, schemas: int}
+     */
+    protected function removeOpenApiArtifacts(array $pathBases = [], array $tags = [], array $schemas = []): array
+    {
+        $indexPath = $this->openApiIndexPath();
+        if (! is_file($indexPath)) {
+            return ['paths' => 0, 'tags' => 0, 'schemas' => 0];
+        }
+
+        $index = json_decode((string) file_get_contents($indexPath), true);
+        if (! is_array($index)) {
+            return ['paths' => 0, 'tags' => 0, 'schemas' => 0];
+        }
+
+        $index['paths'] ??= [];
+        $index['tags'] ??= [];
+        $index['components'] ??= [];
+        $index['components']['schemas'] ??= [];
+
+        $pathBases = array_values(array_unique(array_filter(array_map(
+            static fn ($b) => rtrim(ltrim((string) $b, '/'), '/'),
+            $pathBases
+        ))));
+
+        $pathsToRemove = [];
+        foreach (array_keys($index['paths']) as $pathKey) {
+            $trimmed = ltrim((string) $pathKey, '/');
+            foreach ($pathBases as $base) {
+                if ($base === '') {
+                    continue;
+                }
+                if ($trimmed === $base || str_starts_with($trimmed, $base . '/')) {
+                    $pathsToRemove[] = $pathKey;
+                    break;
+                }
+            }
+        }
+
+        $harvestedSchemas = [];
+        $harvestedTags = [];
+        foreach ($pathsToRemove as $pathKey) {
+            $node = $index['paths'][$pathKey] ?? null;
+            if (is_array($node)) {
+                $harvestedSchemas = array_merge($harvestedSchemas, $this->collectOpenApiSchemaRefs($node));
+                $harvestedTags = array_merge($harvestedTags, $this->collectOpenApiTags($node));
+            }
+            $harvestedSchemas = array_merge(
+                $harvestedSchemas,
+                $this->inferSchemaNamesFromPathKey((string) $pathKey)
+            );
+        }
+
+        foreach ($pathBases as $base) {
+            $harvestedSchemas = array_merge($harvestedSchemas, $this->inferSchemaNamesFromPathKey($base));
+        }
+
+        $schemaKeys = $this->expandOpenApiSchemaKeys(array_merge($schemas, $harvestedSchemas));
+        $tagNames = array_values(array_unique(array_filter(array_merge($tags, $harvestedTags))));
+
+        $removedPaths = 0;
+        foreach ($pathsToRemove as $pathKey) {
+            if (isset($index['paths'][$pathKey])) {
+                unset($index['paths'][$pathKey]);
+                $removedPaths++;
+            }
+        }
+
+        $beforeTags = count($index['tags']);
+        if ($tagNames !== []) {
+            $index['tags'] = array_values(array_filter(
+                $index['tags'],
+                static fn ($t): bool => ! in_array($t['name'] ?? null, $tagNames, true)
+            ));
+        }
+        $removedTags = $beforeTags - count($index['tags']);
+
+        $removedSchemas = 0;
+        foreach ($schemaKeys as $schema) {
+            if (isset($index['components']['schemas'][$schema])) {
+                unset($index['components']['schemas'][$schema]);
+                $removedSchemas++;
+            }
+        }
+
+        // Drop leftovers not used by remaining paths ($ref OR inferred from path segment)
+        $orphan = $this->pruneOrphanOpenApiArtifacts($index);
+        $removedTags += $orphan['tags'];
+        $removedSchemas += $orphan['schemas'];
+
+        $this->saveOpenApiIndex($index);
+
+        return [
+            'paths' => $removedPaths,
+            'tags' => $removedTags,
+            'schemas' => $removedSchemas,
+        ];
+    }
+
+    /**
+     * Remove schemas/tags that no path references anymore.
+     *
+     * @param  array<string, mixed>  $index
+     * @return array{tags: int, schemas: int}
+     */
+    protected function pruneOrphanOpenApiArtifacts(array &$index): array
+    {
+        $index['paths'] ??= [];
+        $index['tags'] ??= [];
+        $index['components'] ??= [];
+        $index['components']['schemas'] ??= [];
+
+        // Model schemas often lack $ref on GET — also treat path segments as in-use
+        $usedSchemas = array_values(array_unique(array_merge(
+            $this->collectOpenApiSchemaRefs($index['paths']),
+            $this->schemasImpliedByOpenApiPaths($index['paths']),
+        )));
+        $usedTags = $this->collectOpenApiTags($index['paths']);
+
+        $keepSchemas = ['User', 'UserStore', 'UserUpdate'];
+
+        $removedSchemas = 0;
+        foreach (array_keys($index['components']['schemas']) as $name) {
+            if (in_array($name, $keepSchemas, true)) {
+                continue;
+            }
+            if (! in_array($name, $usedSchemas, true)) {
+                unset($index['components']['schemas'][$name]);
+                $removedSchemas++;
+            }
+        }
+
+        $beforeTags = count($index['tags']);
+        $index['tags'] = array_values(array_filter(
+            $index['tags'],
+            static function ($t) use ($usedTags): bool {
+                $name = $t['name'] ?? null;
+                if ($name === null) {
+                    return false;
+                }
+                if (in_array($name, ['Auth', 'SSO', 'Authentication'], true)) {
+                    return true;
+                }
+
+                return in_array($name, $usedTags, true);
+            }
+        ));
+
+        return [
+            'tags' => $beforeTags - count($index['tags']),
+            'schemas' => $removedSchemas,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function collectOpenApiSchemaRefs(mixed $node): array
+    {
+        $found = [];
+        if (is_array($node)) {
+            if (isset($node['$ref']) && is_string($node['$ref'])) {
+                if (preg_match('#^#/components/schemas/([^/]+)$#', $node['$ref'], $m)) {
+                    $found[] = $m[1];
+                }
+            }
+            foreach ($node as $child) {
+                $found = array_merge($found, $this->collectOpenApiSchemaRefs($child));
+            }
+        }
+
+        return array_values(array_unique($found));
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function collectOpenApiTags(mixed $node): array
+    {
+        $found = [];
+        if (! is_array($node)) {
+            return [];
+        }
+
+        foreach ($node as $method => $operation) {
+            if (! is_array($operation) || in_array($method, ['parameters', 'summary', 'description', 'servers'], true)) {
+                continue;
+            }
+            foreach ($operation['tags'] ?? [] as $tag) {
+                if (is_string($tag) && $tag !== '') {
+                    $found[] = $tag;
+                }
+            }
+        }
+
+        foreach ($node as $key => $child) {
+            if (is_array($child) && is_string($key) && str_starts_with($key, '/')) {
+                $found = array_merge($found, $this->collectOpenApiTags($child));
+            }
+        }
+
+        return array_values(array_unique($found));
+    }
+
+    /**
+     * @param  array<string, mixed>  $paths
+     * @return list<string>
+     */
+    protected function schemasImpliedByOpenApiPaths(array $paths): array
+    {
+        $out = [];
+        foreach (array_keys($paths) as $pathKey) {
+            $out = array_merge($out, $this->inferSchemaNamesFromPathKey((string) $pathKey));
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * /course → Course; /blog/posts/{id} → Post (+ Store/Update).
+     *
+     * @return list<string>
+     */
+    protected function inferSchemaNamesFromPathKey(string $pathKey): array
+    {
+        $parts = array_values(array_filter(
+            explode('/', trim($pathKey, '/')),
+            static fn (string $p): bool => $p !== '' && ! str_starts_with($p, '{')
+        ));
+
+        if ($parts === []) {
+            return [];
+        }
+
+        $model = Str::studly(Str::singular((string) end($parts)));
+
+        return $this->expandOpenApiSchemaKeys([$model]);
+    }
+
+    /**
+     * @param  list<string>  $names
+     * @return list<string>
+     */
+    protected function expandOpenApiSchemaKeys(array $names): array
+    {
+        $out = [];
+        foreach ($names as $name) {
+            $name = trim((string) $name);
+            if ($name === '') {
+                continue;
+            }
+            $base = preg_replace('/(Store|Update)$/', '', $name) ?: $name;
+            $out[] = $base;
+            $out[] = $base . 'Store';
+            $out[] = $base . 'Update';
+            $out[] = $name;
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
      * Merge a resource fragment (from stub, in-memory) into openapi.json.
      *
      * @param  array<string, mixed>  $fragment
@@ -170,7 +439,7 @@ trait ManagesOpenApiDocument
             }
         }
 
-        foreach ($schemaKeysToReplace as $key) {
+        foreach ($this->expandOpenApiSchemaKeys($schemaKeysToReplace) as $key) {
             unset($index['components']['schemas'][$key]);
         }
 

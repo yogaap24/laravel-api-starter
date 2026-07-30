@@ -7,15 +7,21 @@ namespace Kindharika\ApiStarter\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Console\InteractsWithStubs;
+use Kindharika\ApiStarter\Console\ManagesOpenApiDocument;
 use Kindharika\ApiStarter\Modules\ModulePaths;
 
 class ModuleRemove extends Command
 {
+    use InteractsWithStubs;
+    use ManagesOpenApiDocument;
+
     protected $signature = 'module:remove
                             {module : Module name}
                             {name? : Resource name — omit to delete whole module}
                             {--force : Skip confirmation}
-                            {--keep-migration : Keep migration files}';
+                            {--keep-migration : Keep migration files}
+                            {--openapi-only : Only clean openapi.json (module dir may already be gone)}';
 
     protected $description = 'Remove a module resource or entire module (module:* — not api:remove)';
 
@@ -23,11 +29,14 @@ class ModuleRemove extends Command
     {
         $module = Str::studly($this->argument('module'));
         $name = $this->argument('name') ? Str::studly((string) $this->argument('name')) : null;
+        $exists = ModulePaths::exists($module) || is_dir(ModulePaths::module($module));
 
-        if (! ModulePaths::exists($module) && ! is_dir(ModulePaths::module($module))) {
-            $this->error("Module [{$module}] not found.");
+        if ($this->option('openapi-only') || ! $exists) {
+            if (! $exists && ! $this->option('openapi-only')) {
+                $this->warn("Module [{$module}] not found on disk — cleaning OpenAPI only.");
+            }
 
-            return self::FAILURE;
+            return $this->cleanOpenApiOnly($module, $name);
         }
 
         if ($name === null) {
@@ -35,6 +44,36 @@ class ModuleRemove extends Command
         }
 
         return $this->removeResource($module, $name);
+    }
+
+    protected function cleanOpenApiOnly(string $module, ?string $name): int
+    {
+        $prefix = ModulePaths::prefix($module);
+
+        if ($name === null) {
+            $stats = $this->removeOpenApiArtifacts(
+                pathBases: [$prefix],
+                tags: [$module, $prefix, Str::studly($prefix) . '/' . Str::studly($prefix)],
+                schemas: [],
+            );
+        } else {
+            $primary = Str::studly($module) === Str::studly($name);
+            $route = Str::kebab(Str::pluralStudly($name));
+            $pathNeedle = $primary ? $prefix : ($prefix . '/' . $route);
+            $tag = $primary ? $module : ($module . '/' . $name);
+            $stats = $this->removeOpenApiArtifacts(
+                pathBases: array_filter([
+                    $pathNeedle,
+                    $primary ? $prefix . '/' . $route : null,
+                ]),
+                tags: [$tag, $module . '/' . $name, $name . '/' . $name],
+                schemas: [$name],
+            );
+        }
+
+        $this->reportOpenApiCleanup($stats);
+
+        return self::SUCCESS;
     }
 
     protected function removeModule(string $module): int
@@ -62,19 +101,18 @@ class ModuleRemove extends Command
         foreach ($modelNames as $modelName) {
             $tags[] = $module . '/' . $modelName;
             $tags[] = $modelName . '/' . $modelName;
+            $tags[] = $modelName;
             $schemas[] = $modelName;
-            $schemas[] = $modelName . 'Store';
-            $schemas[] = $modelName . 'Update';
         }
 
         File::deleteDirectory($dir);
 
-        $this->removeFromOpenApiIndex(
-            pathBases: [$prefix, $prefix . '/'],
+        $stats = $this->removeOpenApiArtifacts(
+            pathBases: [$prefix],
             tags: array_values(array_unique($tags)),
             schemas: array_values(array_unique($schemas)),
         );
-        $this->purgeLegacyOpenApiFragments();
+        $this->reportOpenApiCleanup($stats);
 
         foreach ($deletedMigrations as $migration) {
             $this->line("Deleted: {$migration}");
@@ -83,7 +121,7 @@ class ModuleRemove extends Command
             $this->warn('Deleted migration(s) — run migrate:rollback manually if already applied.');
         }
 
-        $this->info("Module [{$module}] deleted (OpenAPI paths/tags/schemas cleaned).");
+        $this->info("Module [{$module}] deleted.");
 
         return self::SUCCESS;
     }
@@ -163,17 +201,17 @@ class ModuleRemove extends Command
         $modulePrefix = ModulePaths::prefix($module);
         $pathNeedle = $primary ? $modulePrefix : ($modulePrefix . '/' . $routeUri);
         $tag = $primary ? $module : ($module . '/' . $name);
-        $this->removeFromOpenApiIndex(
+        $stats = $this->removeOpenApiArtifacts(
             pathBases: array_filter([
                 $pathNeedle,
                 $primary ? $modulePrefix . '/' . $route : null,
                 $primary ? $modulePrefix . '/' . Str::kebab(Str::studly($name)) : null,
             ]),
-            tags: [$tag, $module . '/' . $name, $name . '/' . $name],
-            schemas: [$name, $name . 'Store', $name . 'Update'],
+            tags: [$tag, $module . '/' . $name, $name . '/' . $name, $name],
+            schemas: [$name],
         );
-        $this->purgeLegacyOpenApiFragments();
-        $deleted[] = 'openapi.json paths/schemas for ' . $tag;
+        $this->reportOpenApiCleanup($stats);
+        $deleted[] = 'openapi.json';
 
         if ($deleted === []) {
             $this->warn("No files found for [{$module}/{$name}].");
@@ -185,6 +223,19 @@ class ModuleRemove extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @param  array{paths: int, tags: int, schemas: int}  $stats
+     */
+    protected function reportOpenApiCleanup(array $stats): void
+    {
+        $this->info(sprintf(
+            'OpenAPI cleaned: %d path(s), %d tag(s), %d schema(s)',
+            $stats['paths'],
+            $stats['tags'],
+            $stats['schemas'],
+        ));
     }
 
     /**
@@ -214,12 +265,24 @@ class ModuleRemove extends Command
             $models[] = $name;
         }
 
+        // Fallback: Controllers/{Name}Controller.php
+        if ($models === []) {
+            foreach (File::glob($moduleDir . '/Http/Controllers/*Controller.php') ?: [] as $file) {
+                $base = pathinfo((string) $file, PATHINFO_FILENAME);
+                if (! str_ends_with($base, 'Controller')) {
+                    continue;
+                }
+                $name = substr($base, 0, -strlen('Controller'));
+                if ($name !== '') {
+                    $models[] = $name;
+                }
+            }
+        }
+
         return array_values(array_unique($models));
     }
 
     /**
-     * Delete create_* migrations for a table from standard + legacy module paths.
-     *
      * @return list<string> deleted paths
      */
     protected function deleteMigrationsForTable(string $table, ?string $moduleDir = null): array
@@ -245,68 +308,5 @@ class ModuleRemove extends Command
         }
 
         return $deleted;
-    }
-
-    /**
-     * @param  list<string>  $pathBases
-     * @param  list<string>  $tags
-     * @param  list<string>  $schemas
-     */
-    protected function removeFromOpenApiIndex(array $pathBases = [], array $tags = [], array $schemas = []): void
-    {
-        $indexPath = config('api-starter.paths.openapi', base_path('storage/api-docs')) . '/openapi.json';
-        if (! is_file($indexPath)) {
-            return;
-        }
-
-        $index = json_decode((string) file_get_contents($indexPath), true);
-        if (! is_array($index)) {
-            return;
-        }
-
-        foreach (array_keys($index['paths'] ?? []) as $pathKey) {
-            $trimmed = ltrim((string) $pathKey, '/');
-            foreach ($pathBases as $base) {
-                $base = rtrim(ltrim((string) $base, '/'), '/');
-                if ($base === '') {
-                    continue;
-                }
-                if ($trimmed === $base || str_starts_with($trimmed, $base . '/')) {
-                    unset($index['paths'][$pathKey]);
-                    break;
-                }
-            }
-        }
-
-        if ($tags !== []) {
-            $index['tags'] = array_values(array_filter(
-                $index['tags'] ?? [],
-                static fn ($t): bool => ! in_array($t['name'] ?? null, $tags, true)
-            ));
-        }
-
-        foreach ($schemas as $schema) {
-            unset($index['components']['schemas'][$schema]);
-        }
-
-        file_put_contents($indexPath, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
-    }
-
-    protected function removeOpenApiPathsContaining(string $needle): void
-    {
-        $this->removeFromOpenApiIndex(pathBases: [$needle]);
-    }
-
-    protected function purgeLegacyOpenApiFragments(): void
-    {
-        $dir = config('api-starter.paths.openapi', base_path('storage/api-docs'));
-        if (! is_dir($dir)) {
-            return;
-        }
-        foreach (glob($dir . '/*.openapi.json') ?: [] as $file) {
-            if (is_file($file)) {
-                File::delete($file);
-            }
-        }
     }
 }

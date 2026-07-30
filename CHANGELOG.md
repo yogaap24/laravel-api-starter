@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.6] - 2026-07-30
+
+### Fixed
+- **OpenAPI leftovers on remove**: `module:remove` / `api:remove` now delete paths + tags + schemas (`Model`/`Store`/`Update`), harvest `$ref` from removed paths, infer schema names from URL segments, then prune orphans
+- Module gone from disk? Still cleans OpenAPI (`module:remove Course --force` or `--openapi-only`)
+
+### Added
+- `php artisan api:openapi-prune --prefix=course` / `--schema=Course` / `--orphans` for leftover cleanup
+- Module OpenAPI stub: GET responses `$ref` model schema (helps future harvest)
+
 ## [2.2.5] - 2026-07-30
 
 ### Changed

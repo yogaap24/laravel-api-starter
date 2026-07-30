@@ -7,9 +7,14 @@ namespace Kindharika\ApiStarter\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Console\InteractsWithStubs;
+use Kindharika\ApiStarter\Console\ManagesOpenApiDocument;
 
 class ApiRemove extends Command
 {
+    use InteractsWithStubs;
+    use ManagesOpenApiDocument;
+
     protected $signature = 'api:remove
                             {name : The resource name (e.g. Post or CobaAuth)}
                             {--force : Do not ask for confirmation}
@@ -29,7 +34,6 @@ class ApiRemove extends Command
             return self::SUCCESS;
         }
 
-        $namespace = (string) config('api-starter.namespace', 'App');
         $deleted = [];
 
         $candidates = [
@@ -51,13 +55,11 @@ class ApiRemove extends Command
             }
         }
 
-        // Drop legacy fragment if still present
         $legacyOpenApi = config('api-starter.paths.openapi', base_path('storage/api-docs')) . "/{$route}.openapi.json";
         if (is_file($legacyOpenApi) && File::delete($legacyOpenApi)) {
             $deleted[] = $legacyOpenApi;
         }
 
-        // Empty request/service directories
         foreach ([
             config('api-starter.paths.request', app_path('Http/Requests')) . "/{$name}",
             config('api-starter.paths.service', app_path('Services')) . "/{$name}",
@@ -78,7 +80,17 @@ class ApiRemove extends Command
             }
         }
 
-        $this->removeFromOpenApiIndex($route, $name);
+        $stats = $this->removeOpenApiArtifacts(
+            pathBases: [$route],
+            tags: [$name],
+            schemas: [$name],
+        );
+        $this->info(sprintf(
+            'OpenAPI cleaned: %d path(s), %d tag(s), %d schema(s)',
+            $stats['paths'],
+            $stats['tags'],
+            $stats['schemas'],
+        ));
 
         if ($deleted === []) {
             $this->warn("No scaffold files found for [{$name}].");
@@ -96,44 +108,5 @@ class ApiRemove extends Command
         $this->comment('Or drop table manually.');
 
         return self::SUCCESS;
-    }
-
-    protected function removeFromOpenApiIndex(string $route, string $modelClass): void
-    {
-        $indexPath = config('api-starter.paths.openapi', base_path('storage/api-docs')) . '/openapi.json';
-        if (! is_file($indexPath)) {
-            return;
-        }
-
-        $index = json_decode((string) file_get_contents($indexPath), true);
-        if (! is_array($index)) {
-            return;
-        }
-
-        unset($index['paths']["/{$route}"], $index['paths']["/{$route}/{id}"]);
-
-        $index['tags'] = array_values(array_filter(
-            $index['tags'] ?? [],
-            fn ($tag) => ($tag['name'] ?? null) !== $modelClass
-        ));
-
-        foreach (["{$modelClass}", "{$modelClass}Store", "{$modelClass}Update"] as $schema) {
-            unset($index['components']['schemas'][$schema]);
-        }
-
-        file_put_contents(
-            $indexPath,
-            json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL
-        );
-
-        // Purge legacy *.openapi.json fragments — only openapi.json remains
-        $dir = dirname($indexPath);
-        foreach (glob($dir . '/*.openapi.json') ?: [] as $file) {
-            if (is_file($file)) {
-                File::delete($file);
-            }
-        }
-
-        $this->info('Updated storage/api-docs/openapi.json');
     }
 }

@@ -21,6 +21,7 @@ use Kindharika\ApiStarter\Console\Commands\ApiMakeResource;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeRoute;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeService;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeSso;
+use Kindharika\ApiStarter\Console\Commands\ApiOpenApiPrune;
 use Kindharika\ApiStarter\Console\Commands\ApiRemove;
 use Kindharika\ApiStarter\Console\Commands\ApiScaffold;
 use Kindharika\ApiStarter\Console\Commands\ModuleList;
@@ -66,6 +67,7 @@ class ApiStarterServiceProvider extends ServiceProvider
                 ApiMakeResource::class,
                 ApiMakeRoute::class,
                 ApiMakeService::class,
+                ApiOpenApiPrune::class,
                 // Modular module:* — separate namespace
                 ModuleMake::class,
                 ModuleScaffold::class,
