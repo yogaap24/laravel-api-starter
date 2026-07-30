@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-07-30
+
+### Added
+- PHPDoc / type guides on base classes (`BaseApiController`, `BaseService`, `BaseServiceInterface`, `BaseModel`, `ResponseService`, `BaseAuthenticatable`)
+- PHPDoc on generated stubs: controllers, services, FormRequests, Resources, models, auth, SSO, module variants
+- PHPDoc on RBAC, middleware, DatatableMacro, ModulePaths, SocialConfig
+
+### Changed
+- Stub scaffolds document envelope shapes, UUID `$id`, validated() array shapes, and return types for IDE/static analysis
+
 ## [2.1.0] - 2026-07-29
 
 ### Added
@@ -66,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release: BaseModel, BaseService, BaseApiController, datatable macro, scaffold commands, FCM helpers
 
-[2.1.0]: https://github.com/yogaap24/laravel-api-starter/compare/2.0.0...2.1.0
+[2.1.1]: https://github.com/yogaap24/laravel-api-starter/compare/2.1.0...2.1.1
+[2.1.0]: https://github.com/yogaap24/laravel-api-starter/compare/2.0.7...2.1.0
 [2.0.0]: https://github.com/yogaap24/laravel-api-starter/compare/1.0.0...2.0.0
 [1.0.0]: https://github.com/yogaap24/laravel-api-starter/releases/tag/1.0.0

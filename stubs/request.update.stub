@@ -4,6 +4,14 @@ namespace {{namespace}}\Http\Requests\{{modelClass}};
 
 use Illuminate\Foundation\Http\FormRequest;
 
+/**
+ * Validates update {{modelClass}} payload (partial allowed).
+ *
+ * @property-read string|null $name
+ * @property-read string|null $description
+ *
+ * @method array{name?: string, description?: string|null} validated($key = null, $default = null)
+ */
 class {{class}} extends FormRequest
 {
     public function authorize(): bool
@@ -11,6 +19,9 @@ class {{class}} extends FormRequest
         return true;
     }
 
+    /**
+     * @return array<string, list<string>>
+     */
     public function rules(): array
     {
         return [

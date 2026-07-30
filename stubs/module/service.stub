@@ -3,9 +3,14 @@
 namespace {{namespace}}\Services\{{modelClass}};
 
 use {{namespace}}\Models\{{modelClass}};
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Foundation\Http\FormRequest;
 use Kindharika\ApiStarter\Base\BaseService;
 use Kindharika\ApiStarter\Base\BaseServiceInterface;
 
+/**
+ * Module service for {{modelClass}} CRUD + datatable.
+ */
 class {{class}} extends BaseService implements BaseServiceInterface
 {
     public function __construct({{modelClass}} $model)
@@ -13,6 +18,10 @@ class {{class}} extends BaseService implements BaseServiceInterface
         parent::__construct($model);
     }
 
+    /**
+     * @param  array<string, mixed>|FormRequest|mixed  $filter
+     * @return LengthAwarePaginator<int, {{modelClass}}>
+     */
     public function dataTable(mixed $filter): mixed
     {
         $perPage = (int) ($filter['entries'] ?? config('api-starter.datatable.per_page', 15));
@@ -22,11 +31,19 @@ class {{class}} extends BaseService implements BaseServiceInterface
             ->paginate($perPage);
     }
 
+    /**
+     * @param  string  $id  UUID primary key
+     * @return {{modelClass}}
+     */
     public function getById(mixed $id): mixed
     {
         return {{modelClass}}::query()->findOrFail($id);
     }
 
+    /**
+     * @param  FormRequest|array<string, mixed>|mixed  $data
+     * @return {{modelClass}}
+     */
     public function create(mixed $data): mixed
     {
         $payload = method_exists($data, 'validated') ? $data->validated() : (array) $data;
@@ -34,6 +51,11 @@ class {{class}} extends BaseService implements BaseServiceInterface
         return {{modelClass}}::query()->create($payload);
     }
 
+    /**
+     * @param  string  $id  UUID primary key
+     * @param  FormRequest|array<string, mixed>|mixed  $data
+     * @return {{modelClass}}
+     */
     public function update(mixed $id, mixed $data): mixed
     {
         $model = {{modelClass}}::query()->findOrFail($id);
@@ -43,6 +65,10 @@ class {{class}} extends BaseService implements BaseServiceInterface
         return $model->fresh();
     }
 
+    /**
+     * @param  string  $id  UUID primary key
+     * @return {{modelClass}}
+     */
     public function delete(mixed $id): mixed
     {
         $model = {{modelClass}}::query()->findOrFail($id);

@@ -5,6 +5,14 @@ namespace {{namespace}}\Http\Requests\Auth;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
+/**
+ * @property-read string $token
+ * @property-read string $email
+ * @property-read string $password
+ * @property-read string $password_confirmation
+ *
+ * @method array{token: string, email: string, password: string, password_confirmation?: string} validated($key = null, $default = null)
+ */
 class ResetPasswordRequest extends FormRequest
 {
     public function authorize(): bool
@@ -12,6 +20,9 @@ class ResetPasswordRequest extends FormRequest
         return true;
     }
 
+    /**
+     * @return array<string, list<string|\Illuminate\Validation\Rules\Password>>
+     */
     public function rules(): array
     {
         return [

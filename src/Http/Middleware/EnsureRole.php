@@ -9,6 +9,12 @@ use Illuminate\Http\Request;
 use Kindharika\ApiStarter\Rbac\RbacManager;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Alias: api-starter.role:{role}[,…]
+ *
+ * Returns JSON 401 if unauthenticated, 403 if missing role.
+ * When api-starter.rbac.enabled=false → pass-through.
+ */
 class EnsureRole
 {
     public function __construct(
@@ -17,6 +23,7 @@ class EnsureRole
 
     /**
      * @param  Closure(Request): Response  $next
+     * @param  string  ...$roles  Role names from middleware parameters
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {

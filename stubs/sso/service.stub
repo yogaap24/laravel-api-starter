@@ -9,8 +9,17 @@ use Kindharika\ApiStarter\Support\SocialConfig;
 use Laravel\Socialite\Facades\Socialite;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
+/**
+ * Socialite-backed SSO. Links social_accounts → users, issues Sanctum token.
+ *
+ * @phpstan-type SocialProfile array{id: string, email: ?string, name: string, avatar: ?string, token: ?string}
+ * @phpstan-type SsoTokenResult array{user: \Illuminate\Contracts\Auth\Authenticatable, token: string, token_type: string, provider: string}
+ */
 class SocialAuthService
 {
+    /**
+     * Start OAuth redirect (stateless when api-starter.social.stateless=true).
+     */
     public function redirect(string $provider): RedirectResponse
     {
         $driver = Socialite::driver($provider);
@@ -22,6 +31,11 @@ class SocialAuthService
         return $driver->redirect();
     }
 
+    /**
+     * Complete OAuth callback and issue API token.
+     *
+     * @return SsoTokenResult|null
+     */
     public function handleCallback(string $provider): ?array
     {
         $driver = Socialite::driver($provider);
@@ -42,7 +56,10 @@ class SocialAuthService
     }
 
     /**
+     * Exchange provider token for Sanctum token (SPA/mobile friendly).
+     *
      * @param  array{access_token?: string, id_token?: string}  $payload
+     * @return SsoTokenResult|null
      */
     public function loginWithToken(string $provider, array $payload): ?array
     {
@@ -76,6 +93,11 @@ class SocialAuthService
         return null;
     }
 
+    /**
+     * Verify Google ID token via tokeninfo + audience check.
+     *
+     * @return SsoTokenResult|null
+     */
     protected function loginWithGoogleIdToken(string $idToken): ?array
     {
         $clientId = config('services.google.client_id');
@@ -114,7 +136,10 @@ class SocialAuthService
     }
 
     /**
-     * @param  array{id: string, email: ?string, name: string, avatar: ?string, token: ?string}  $profile
+     * Find or create user + social_accounts row, then create Sanctum token.
+     *
+     * @param  SocialProfile  $profile
+     * @return SsoTokenResult|null
      */
     protected function issueToken(string $provider, array $profile): ?array
     {

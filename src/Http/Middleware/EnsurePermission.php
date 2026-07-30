@@ -9,6 +9,12 @@ use Illuminate\Http\Request;
 use Kindharika\ApiStarter\Rbac\RbacManager;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Alias: api-starter.permission:{permission}[,…]
+ *
+ * Returns JSON 401 if unauthenticated, 403 if missing permission.
+ * When api-starter.rbac.enabled=false → pass-through (auth still from route group).
+ */
 class EnsurePermission
 {
     public function __construct(
@@ -17,6 +23,7 @@ class EnsurePermission
 
     /**
      * @param  Closure(Request): Response  $next
+     * @param  string  ...$permissions  Permission names from middleware parameters
      */
     public function handle(Request $request, Closure $next, string ...$permissions): Response
     {

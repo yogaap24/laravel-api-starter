@@ -9,6 +9,19 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Ramsey\Uuid\Uuid;
 
+/**
+ * Eloquent base with UUID primary key + SoftDeletes.
+ *
+ * Defaults:
+ * - keyType = string, incrementing = false
+ * - UUID version from config('api-starter.uuid_version', 7) — override via $uuidVersion
+ * - Prefer $fillable on concrete models; $guarded = [] kept for v1 BC
+ *
+ * @property string $id
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ */
 abstract class BaseModel extends Model
 {
     use SoftDeletes;
@@ -20,6 +33,7 @@ abstract class BaseModel extends Model
      */
     protected $keyType = 'string';
 
+    /** When true, auto-generate UUID on creating if PK empty. */
     protected bool $keyIsUuid = true;
 
     /**
@@ -44,6 +58,9 @@ abstract class BaseModel extends Model
      */
     protected $guarded = [];
 
+    /**
+     * @var array<string, string>
+     */
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -62,6 +79,11 @@ abstract class BaseModel extends Model
         });
     }
 
+    /**
+     * Generate a UUID string for the primary key.
+     *
+     * @throws Exception When uuid version is not 1, 4, or 7
+     */
     protected function generateUuid(): string
     {
         $version = $this->uuidVersion ?? (int) config('api-starter.uuid_version', 7);

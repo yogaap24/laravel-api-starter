@@ -9,10 +9,39 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
+/**
+ * Registers Eloquent Builder::datatable() macro for search / filter / sort / date range.
+ *
+ * Query params (array keys):
+ * @phpstan-type DatatableRequest array{
+ *     search_key?: string,
+ *     search_columns?: string,
+ *     sort_column?: string,
+ *     sort_type?: string,
+ *     filter_columns?: string,
+ *     filter_keys?: string,
+ *     filter_date_column?: string,
+ *     filter_date_start?: string,
+ *     filter_date_end?: string,
+ *     entries?: int|string
+ * }
+ *
+ * Usage: Model::query()->datatable($request->all())->paginate(15);
+ */
 class DatatableMacro
 {
+    /**
+     * Bind the datatable macro onto Eloquent Builder.
+     *
+     * @return void
+     */
     public function register(): void
     {
+        /**
+         * @param  array<string, mixed>  $request
+         * @param  bool  $useSort
+         * @return Builder
+         */
         Builder::macro('datatable', function (array $request = [], bool $useSort = true) {
             /** @var Builder $query */
             $query = $this;
@@ -107,6 +136,11 @@ class DatatableMacro
         });
     }
 
+    /**
+     * Resolve LIKE operator: "ilike" (pgsql) or "like" (mysql/sqlite), or config override.
+     *
+     * @return 'like'|'ilike'
+     */
     public static function resolveSearchOperator(): string
     {
         $configured = config('api-starter.datatable.search_operator', 'auto');

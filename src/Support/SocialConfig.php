@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Kindharika\ApiStarter\Support;
 
+/**
+ * Opt-in SSO / Socialite config helpers.
+ *
+ * Env: API_STARTER_SOCIAL, API_STARTER_SOCIAL_PROVIDERS, API_STARTER_SOCIAL_STATELESS
+ */
 class SocialConfig
 {
     public static function enabled(): bool
@@ -30,11 +35,17 @@ class SocialConfig
         ))));
     }
 
+    /**
+     * Whether {provider} is in the allowlist (case-insensitive).
+     */
     public static function isAllowed(string $provider): bool
     {
         return in_array(strtolower($provider), self::providers(), true);
     }
 
+    /**
+     * Use Socialite::stateless() for API / SPA flows (no session state).
+     */
     public static function stateless(): bool
     {
         return (bool) config('api-starter.social.stateless', true);

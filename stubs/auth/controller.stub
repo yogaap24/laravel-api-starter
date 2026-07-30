@@ -7,10 +7,19 @@ use {{namespace}}\Http\Requests\Auth\LoginRequest;
 use {{namespace}}\Http\Requests\Auth\RegisterRequest;
 use {{namespace}}\Http\Requests\Auth\ResetPasswordRequest;
 use {{namespace}}\Services\Auth\AuthService;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Kindharika\ApiStarter\Base\BaseApiController;
 
+/**
+ * Sanctum auth endpoints: register, login, logout, me, forgot/reset password.
+ *
+ * Success data shapes:
+ * - register/login: { user: Authenticatable, token: string, token_type: "Bearer" }
+ * - me: Authenticatable
+ * - logout / forgot / reset: data null + message
+ */
 class AuthController extends BaseApiController
 {
     public function __construct(
@@ -20,6 +29,9 @@ class AuthController extends BaseApiController
         parent::__construct($request);
     }
 
+    /**
+     * @return JsonResponse  HTTP 201 — { user, token, token_type }
+     */
     public function register(RegisterRequest $request): JsonResponse
     {
         $result = $this->service->register($request->validated());
@@ -27,6 +39,9 @@ class AuthController extends BaseApiController
         return $this->sendSuccess($result, 'Registered successfully', 201);
     }
 
+    /**
+     * @return JsonResponse  HTTP 200 or 401
+     */
     public function login(LoginRequest $request): JsonResponse
     {
         $result = $this->service->login($request->validated());
@@ -38,18 +53,36 @@ class AuthController extends BaseApiController
         return $this->sendSuccess($result, 'Logged in successfully', 200);
     }
 
+    /**
+     * Revoke current Sanctum access token.
+     *
+     * @return JsonResponse  HTTP 200
+     */
     public function logout(Request $request): JsonResponse
     {
-        $this->service->logout($request->user());
+        /** @var Authenticatable $user */
+        $user = $request->user();
+        $this->service->logout($user);
 
         return $this->sendSuccess(null, 'Logged out successfully', 200);
     }
 
+    /**
+     * Current authenticated user.
+     *
+     * @return JsonResponse  data: Authenticatable
+     */
     public function me(Request $request): JsonResponse
     {
-        return $this->sendSuccess($this->service->me($request->user()), null, 200);
+        /** @var Authenticatable $user */
+        $user = $request->user();
+
+        return $this->sendSuccess($this->service->me($user), null, 200);
     }
 
+    /**
+     * @return JsonResponse  HTTP 200 or 422
+     */
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
         $status = $this->service->forgotPassword($request->validated());
@@ -61,6 +94,9 @@ class AuthController extends BaseApiController
         return $this->sendSuccess(null, __($status), 200);
     }
 
+    /**
+     * @return JsonResponse  HTTP 200 or 422
+     */
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
         $status = $this->service->resetPassword($request->validated());

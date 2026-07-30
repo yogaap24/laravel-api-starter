@@ -5,6 +5,14 @@ namespace {{namespace}}\Http\Requests\Auth;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
+/**
+ * SSO token exchange body. Provide access_token and/or id_token (Google).
+ *
+ * @property-read string|null $access_token
+ * @property-read string|null $id_token
+ *
+ * @method array{access_token?: string, id_token?: string} validated($key = null, $default = null)
+ */
 class SocialTokenRequest extends FormRequest
 {
     public function authorize(): bool
@@ -12,6 +20,9 @@ class SocialTokenRequest extends FormRequest
         return true;
     }
 
+    /**
+     * @return array<string, list<string>>
+     */
     public function rules(): array
     {
         return [

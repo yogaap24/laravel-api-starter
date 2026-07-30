@@ -5,11 +5,18 @@ namespace {{namespace}}\Http\Controllers\Api;
 use {{namespace}}\Http\Requests\{{modelClass}}\Store{{modelClass}}Request;
 use {{namespace}}\Http\Requests\{{modelClass}}\Update{{modelClass}}Request;
 use {{namespace}}\Http\Resources\{{modelClass}}Resource;
+use {{namespace}}\Models\{{modelClass}};
 use {{namespace}}\Services\{{modelClass}}\{{modelClass}}Service;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Kindharika\ApiStarter\Base\BaseApiController;
 
+/**
+ * CRUD API controller for {{modelClass}}.
+ *
+ * Response envelope: { code: int, success: bool, message: string|null, data: mixed, meta?: array }
+ */
 class {{class}} extends BaseApiController
 {
     public function __construct(
@@ -20,6 +27,11 @@ class {{class}} extends BaseApiController
     }
 
     /**
+     * List {{modelClass}} resources (paginated datatable).
+     *
+     * Query: entries, search_key, search_columns, sort_column, sort_type,
+     *        filter_columns, filter_keys, filter_date_column, filter_date_start, filter_date_end
+     *
      * @OA\Get(
      *     path="/{{route}}",
      *     tags={"{{modelClass}}"},
@@ -31,9 +43,12 @@ class {{class}} extends BaseApiController
      *     @OA\Parameter(name="sort_type", in="query", @OA\Schema(type="string", enum={"asc","desc"})),
      *     @OA\Response(response=200, description="Paginated list")
      * )
+     *
+     * @return JsonResponse  data: list of {{modelClass}}Resource arrays + meta pagination
      */
     public function index(Request $request): JsonResponse
     {
+        /** @var LengthAwarePaginator<int, {{modelClass}}> $paginator */
         $paginator = $this->service->dataTable($request->all());
         $paginator->through(fn ($item) => (new {{modelClass}}Resource($item))->resolve());
 
@@ -41,6 +56,8 @@ class {{class}} extends BaseApiController
     }
 
     /**
+     * Create {{modelClass}}.
+     *
      * @OA\Post(
      *     path="/{{route}}",
      *     tags={"{{modelClass}}"},
@@ -48,15 +65,22 @@ class {{class}} extends BaseApiController
      *     @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/{{modelClass}}Store")),
      *     @OA\Response(response=201, description="Created")
      * )
+     *
+     * @return JsonResponse  HTTP 201, data: {{modelClass}}Resource array
      */
     public function store(Store{{modelClass}}Request $request): JsonResponse
     {
+        /** @var {{modelClass}} $data */
         $data = $this->service->create($request);
 
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 201);
     }
 
     /**
+     * Show one {{modelClass}} by UUID.
+     *
+     * @param  string  $id  UUID primary key
+     *
      * @OA\Get(
      *     path="/{{route}}/{id}",
      *     tags={"{{modelClass}}"},
@@ -65,15 +89,22 @@ class {{class}} extends BaseApiController
      *     @OA\Response(response=200, description="OK"),
      *     @OA\Response(response=404, description="Not found")
      * )
+     *
+     * @return JsonResponse  data: {{modelClass}}Resource array
      */
     public function show(string $id): JsonResponse
     {
+        /** @var {{modelClass}} $data */
         $data = $this->service->getById($id);
 
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 
     /**
+     * Update {{modelClass}} by UUID.
+     *
+     * @param  string  $id  UUID primary key
+     *
      * @OA\Put(
      *     path="/{{route}}/{id}",
      *     tags={"{{modelClass}}"},
@@ -83,15 +114,22 @@ class {{class}} extends BaseApiController
      *     @OA\Response(response=200, description="Updated"),
      *     @OA\Response(response=404, description="Not found")
      * )
+     *
+     * @return JsonResponse  data: {{modelClass}}Resource array
      */
     public function update(Update{{modelClass}}Request $request, string $id): JsonResponse
     {
+        /** @var {{modelClass}} $data */
         $data = $this->service->update($id, $request);
 
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 
     /**
+     * Soft-delete {{modelClass}} by UUID.
+     *
+     * @param  string  $id  UUID primary key
+     *
      * @OA\Delete(
      *     path="/{{route}}/{id}",
      *     tags={"{{modelClass}}"},
@@ -100,9 +138,12 @@ class {{class}} extends BaseApiController
      *     @OA\Response(response=200, description="Deleted"),
      *     @OA\Response(response=404, description="Not found")
      * )
+     *
+     * @return JsonResponse  data: deleted {{modelClass}}Resource array
      */
     public function destroy(string $id): JsonResponse
     {
+        /** @var {{modelClass}} $data */
         $data = $this->service->delete($id);
 
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);

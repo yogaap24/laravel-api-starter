@@ -4,6 +4,12 @@ namespace {{namespace}}\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 
+/**
+ * @property-read string $email
+ * @property-read string $password
+ *
+ * @method array{email: string, password: string} validated($key = null, $default = null)
+ */
 class LoginRequest extends FormRequest
 {
     public function authorize(): bool
@@ -11,6 +17,9 @@ class LoginRequest extends FormRequest
         return true;
     }
 
+    /**
+     * @return array<string, list<string>>
+     */
     public function rules(): array
     {
         return [

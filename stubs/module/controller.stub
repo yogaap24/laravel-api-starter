@@ -5,11 +5,18 @@ namespace {{namespace}}\Http\Controllers;
 use {{namespace}}\Http\Requests\{{modelClass}}\Store{{modelClass}}Request;
 use {{namespace}}\Http\Requests\{{modelClass}}\Update{{modelClass}}Request;
 use {{namespace}}\Http\Resources\{{modelClass}}Resource;
+use {{namespace}}\Models\{{modelClass}};
 use {{namespace}}\Services\{{modelClass}}\{{modelClass}}Service;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Kindharika\ApiStarter\Base\BaseApiController;
 
+/**
+ * Module CRUD controller for {{modelClass}}.
+ *
+ * Response envelope: { code: int, success: bool, message: string|null, data: mixed, meta?: array }
+ */
 class {{class}} extends BaseApiController
 {
     public function __construct(
@@ -19,37 +26,63 @@ class {{class}} extends BaseApiController
         parent::__construct($request);
     }
 
+    /**
+     * List {{modelClass}} (paginated).
+     *
+     * @return JsonResponse  data: list + meta
+     */
     public function index(Request $request): JsonResponse
     {
+        /** @var LengthAwarePaginator<int, {{modelClass}}> $paginator */
         $paginator = $this->service->dataTable($request->all());
         $paginator->through(fn ($item) => (new {{modelClass}}Resource($item))->resolve());
 
         return $this->sendSuccess($paginator, null, 200);
     }
 
+    /**
+     * Create {{modelClass}}.
+     *
+     * @return JsonResponse  HTTP 201
+     */
     public function store(Store{{modelClass}}Request $request): JsonResponse
     {
+        /** @var {{modelClass}} $data */
         $data = $this->service->create($request);
 
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 201);
     }
 
+    /**
+     * @param  string  $id  UUID primary key
+     */
     public function show(string $id): JsonResponse
     {
+        /** @var {{modelClass}} $data */
         $data = $this->service->getById($id);
 
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 
+    /**
+     * @param  string  $id  UUID primary key
+     */
     public function update(Update{{modelClass}}Request $request, string $id): JsonResponse
     {
+        /** @var {{modelClass}} $data */
         $data = $this->service->update($id, $request);
 
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 
+    /**
+     * Soft-delete by UUID.
+     *
+     * @param  string  $id  UUID primary key
+     */
     public function destroy(string $id): JsonResponse
     {
+        /** @var {{modelClass}} $data */
         $data = $this->service->delete($id);
 
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);

@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Kindharika\ApiStarter\Base\BaseService;
 
+/**
+ * Sanctum password auth + password reset.
+ *
+ * Token payloads: array{user: Authenticatable, token: string, token_type: 'Bearer'}
+ */
 class AuthService extends BaseService
 {
     public function __construct()
@@ -17,6 +22,10 @@ class AuthService extends BaseService
         parent::__construct(new $modelClass);
     }
 
+    /**
+     * @param  array{name: string, email: string, password: string}  $data
+     * @return array{user: Authenticatable, token: string, token_type: string}
+     */
     public function register(array $data): array
     {
         $user = $this->model->newQuery()->create([
@@ -36,6 +45,10 @@ class AuthService extends BaseService
         ];
     }
 
+    /**
+     * @param  array{email: string, password: string}  $data
+     * @return array{user: Authenticatable, token: string, token_type: string}|null  null on bad credentials
+     */
     public function login(array $data): ?array
     {
         $user = $this->model->newQuery()->where('email', $data['email'])->first();
@@ -55,6 +68,9 @@ class AuthService extends BaseService
         ];
     }
 
+    /**
+     * Delete the current Sanctum personal access token.
+     */
     public function logout(Authenticatable $user): void
     {
         if (method_exists($user, 'currentAccessToken')) {
@@ -62,16 +78,27 @@ class AuthService extends BaseService
         }
     }
 
+    /**
+     * @return Authenticatable
+     */
     public function me(Authenticatable $user): Authenticatable
     {
         return $user;
     }
 
+    /**
+     * @param  array{email: string}  $data
+     * @return string  Password broker status constant
+     */
     public function forgotPassword(array $data): string
     {
         return Password::sendResetLink(['email' => $data['email']]);
     }
 
+    /**
+     * @param  array{email: string, password: string, password_confirmation: string, token: string}  $data
+     * @return string  Password broker status constant
+     */
     public function resetPassword(array $data): string
     {
         return Password::reset(

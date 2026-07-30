@@ -10,6 +10,13 @@ use Kindharika\ApiStarter\Base\BaseApiController;
 use Kindharika\ApiStarter\Support\SocialConfig;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
+/**
+ * SSO / social login (Google + Socialite providers).
+ *
+ * Providers allowlist: {{providersList}}
+ *
+ * Success data: { user: Authenticatable, token: string, token_type: "Bearer", provider: string }
+ */
 class SocialAuthController extends BaseApiController
 {
     public function __construct(
@@ -21,7 +28,9 @@ class SocialAuthController extends BaseApiController
 
     /**
      * API-first SSO: exchange provider access_token / id_token for Sanctum token.
-     * Providers: {{providersList}}
+     *
+     * @param  string  $provider  Allowlisted Socialite driver (e.g. google)
+     * @return JsonResponse  HTTP 200 | 401 | 422
      */
     public function token(SocialTokenRequest $request, string $provider): JsonResponse
     {
@@ -47,6 +56,11 @@ class SocialAuthController extends BaseApiController
         return $this->sendSuccess($result, 'Logged in via SSO', 200);
     }
 
+    /**
+     * Redirect browser to provider OAuth authorize URL.
+     *
+     * @param  string  $provider
+     */
     public function redirect(string $provider): JsonResponse|RedirectResponse
     {
         if (! SocialConfig::isAllowed($provider)) {
@@ -62,6 +76,12 @@ class SocialAuthController extends BaseApiController
         }
     }
 
+    /**
+     * OAuth callback — issues Sanctum token after provider returns.
+     *
+     * @param  string  $provider
+     * @return JsonResponse  HTTP 200 | 401 | 422
+     */
     public function callback(Request $request, string $provider): JsonResponse
     {
         if (! SocialConfig::isAllowed($provider)) {

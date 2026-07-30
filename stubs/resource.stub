@@ -5,8 +5,28 @@ namespace {{namespace}};
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * API Resource for {{class}}.
+ *
+ * @mixin \Illuminate\Database\Eloquent\Model
+ *
+ * @property string $id
+ * @property string|null $name
+ * @property string|null $description
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class {{class}} extends JsonResource
 {
+    /**
+     * @return array{
+     *     id: string,
+     *     name: string|null,
+     *     description: string|null,
+     *     created_at: \Illuminate\Support\Carbon|null,
+     *     updated_at: \Illuminate\Support\Carbon|null
+     * }
+     */
     public function toArray(Request $request): array
     {
         return [
