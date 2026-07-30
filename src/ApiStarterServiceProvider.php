@@ -137,16 +137,17 @@ class ApiStarterServiceProvider extends ServiceProvider
 
             $publicFile = $moduleDir . '/Routes/api.php';
             if (is_file($publicFile)) {
+                // Auth lives inside the file (Route::middleware(['auth:sanctum'])->...)
                 Route::middleware(AuthConfig::publicMiddleware())
                     ->prefix($modulePrefix)
                     ->group($publicFile);
             }
 
+            // BC: legacy second file still wraps auth at loader level
             $protectedFile = $moduleDir . '/Routes/api-protected.php';
             if (is_file($protectedFile)) {
                 $middleware = AuthConfig::protectedMiddleware();
 
-                // Optional module-level RBAC from module.json
                 if ($manifest !== null && config('api-starter.rbac.enabled', false)) {
                     foreach ($manifest->permissions as $permission) {
                         $middleware[] = 'api-starter.permission:' . $permission;
@@ -161,6 +162,77 @@ class ApiStarterServiceProvider extends ServiceProvider
                     ->group($protectedFile);
             }
         }
+    }
+
+    /**
+     * Paths under /{modulePrefix} that need Bearer in OpenAPI.
+     *
+     * @return list<string>
+     */
+    protected function discoverProtectedModulePaths(
+        string $modulePrefix,
+        string $module,
+        string $contents,
+        bool $legacyProtectedFile,
+    ): array {
+        $out = [];
+        $authNeedle = AuthConfig::middleware()[0] ?? 'auth:sanctum';
+
+        if (preg_match_all(
+            '/\/\/ api-starter:resource:([A-Za-z0-9_]+):begin(.*?)\/\/ api-starter:resource:\1:end/s',
+            $contents,
+            $blocks,
+            PREG_SET_ORDER
+        )) {
+            foreach ($blocks as $block) {
+                $resourceName = $block[1];
+                $body = $block[2];
+                $needsAuth = $legacyProtectedFile
+                    || str_contains($body, $authNeedle)
+                    || str_contains($body, 'auth:sanctum');
+
+                if (! $needsAuth) {
+                    continue;
+                }
+
+                if (preg_match("/apiResource\\('([^']+)'/", $body, $m)) {
+                    $out[] = $modulePrefix . '/' . $m[1];
+                } elseif (str_contains($body, "Route::get('/',")
+                    || str_contains($body, 'Route::get("/",')) {
+                    if (Str::studly($resourceName) === Str::studly($module)) {
+                        $out[] = $modulePrefix;
+                    }
+                }
+            }
+
+            return $out;
+        }
+
+        // Unmarked / legacy file: whole file protected, or lines with auth middleware
+        if ($legacyProtectedFile) {
+            if (preg_match_all("/apiResource\\('([^']+)'/", $contents, $matches)) {
+                foreach ($matches[1] as $resource) {
+                    $out[] = $modulePrefix . '/' . $resource;
+                }
+            }
+            if (str_contains($contents, "Route::get('/',") || str_contains($contents, 'Route::get("/",')) {
+                $out[] = $modulePrefix;
+            }
+
+            return $out;
+        }
+
+        if (preg_match_all(
+            "/Route::middleware\\(\\[[^\\]]*'" . preg_quote($authNeedle, '/') . "'[^\\]]*\\]\\)->apiResource\\('([^']+)'/",
+            $contents,
+            $matches
+        )) {
+            foreach ($matches[1] as $resource) {
+                $out[] = $modulePrefix . '/' . $resource;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -238,36 +310,25 @@ class ApiStarterServiceProvider extends ServiceProvider
                 }
             }
 
-            // Module protected route prefixes (e.g. blog/posts or primary /course)
+            // Module routes that require Bearer (api.php with auth middleware, or legacy api-protected.php)
             $moduleProtected = [];
             if (config('api-starter.modules.enabled', true)) {
                 foreach (ModulePaths::list() as $module) {
-                    $file = ModulePaths::module($module) . '/Routes/api-protected.php';
-                    if (! is_file($file)) {
-                        continue;
-                    }
                     $prefix = ModulePaths::prefix($module);
-                    $contents = (string) file_get_contents($file);
-                    if (preg_match_all("/apiResource\\('([^']+)'/", $contents, $matches)) {
-                        foreach ($matches[1] as $resource) {
-                            $moduleProtected[] = $prefix . '/' . $resource;
+                    foreach (['api.php', 'api-protected.php'] as $routeName) {
+                        $file = ModulePaths::module($module) . '/Routes/' . $routeName;
+                        if (! is_file($file)) {
+                            continue;
                         }
-                    }
-                    // Primary resource routes at module root: Route::get('/', ...)
-                    if (str_contains($contents, "Route::get('/',")
-                        || str_contains($contents, 'Route::get("/",')
-                        || preg_match("/api-starter:resource:[A-Za-z0-9_]+:begin/", $contents)) {
-                        if (preg_match_all('/api-starter:resource:([A-Za-z0-9_]+):begin.*?Route::get\(\'\\/\'/s', $contents, $rootMatches)) {
-                            foreach ($rootMatches[1] as $resName) {
-                                if (Str::studly($resName) === Str::studly($module)) {
-                                    $moduleProtected[] = $prefix;
-                                }
-                            }
-                        } elseif (str_contains($contents, "Route::get('/',")) {
-                            $moduleProtected[] = $prefix;
-                        }
+                        $contents = (string) file_get_contents($file);
+                        $legacyFile = $routeName === 'api-protected.php';
+                        $moduleProtected = array_merge(
+                            $moduleProtected,
+                            $this->discoverProtectedModulePaths($prefix, $module, $contents, $legacyFile)
+                        );
                     }
                 }
+                $moduleProtected = array_values(array_unique($moduleProtected));
             }
 
             foreach ($spec['paths'] ?? [] as $pathKey => $operations) {

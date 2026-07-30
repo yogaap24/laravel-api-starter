@@ -2,7 +2,7 @@
 
 Pure API package for Laravel **11 / 12 / 13** (PHP **^8.3**).
 
-Scaffold CRUD + OpenAPI/Swagger, service layer, UUID models, datatable macro.  
+Scaffold CRUD + OpenAPI/Swagger, service layer, UUID models, datatable macro.
 **2.2** adds column-driven generation, modules, RBAC adapter, SSO. Existing `api:*` flow stays.
 
 ---
@@ -47,16 +47,16 @@ php artisan api:scaffold Post
 php artisan api:scaffold Post --migrate
 ```
 
-| Artifact | Path |
-|----------|------|
-| Model | `app/Models/Post.php` |
-| Controller | `app/Http/Controllers/Api/PostController.php` |
-| Requests | `app/Http/Requests/Post/…` |
-| Service | `app/Services/Post/…` |
-| Resource | `app/Http/Resources/PostResource.php` |
-| Migration | `database/migrations/*_create_posts_table.php` |
-| Route | `routes/api-starter/posts.php` |
-| OpenAPI | `storage/api-docs/openapi.json` only (single Swagger doc) |
+| Artifact   | Path                                                      |
+| ---------- | --------------------------------------------------------- |
+| Model      | `app/Models/Post.php`                                     |
+| Controller | `app/Http/Controllers/Api/PostController.php`             |
+| Requests   | `app/Http/Requests/Post/…`                                |
+| Service    | `app/Services/Post/…`                                     |
+| Resource   | `app/Http/Resources/PostResource.php`                     |
+| Migration  | `database/migrations/*_create_posts_table.php`            |
+| Route      | `routes/api-starter/posts.php`                            |
+| OpenAPI    | `storage/api-docs/openapi.json` only (single Swagger doc) |
 
 ```
 GET/POST       /api/posts
@@ -98,23 +98,23 @@ tags:set:a;b
 user_id:foreignUuid:users
 ```
 
-- Suffix `?` = nullable  
-- Enum/set values: prefer **`;`** (or `|` inside quotes)  
-- Bare `status:enum` → `string(64)` + warning  
+- Suffix `?` = nullable
+- Enum/set values: prefer **`;`** (or `|` inside quotes)
+- Bare `status:enum` → `string(64)` + warning
 - `publish_at:timestamps` → **one** `timestamp` column (`created_at`/`updated_at` already in stub)
 
 ### Common types
 
-| Group | Types |
-|-------|--------|
-| String | `char`, `string`, `text`, `mediumText`, `longText` |
-| Int | `integer`/`int`, `tinyInteger`, `smallInteger`, `mediumInteger`, `bigInteger` + `unsigned*` |
-| Number | `float`, `double`, `decimal`, `unsignedDecimal` |
-| Bool | `boolean`/`bool` |
-| Date | `date`, `dateTime`, `dateTimeTz`, `time`, `timeTz`, `timestamp`/`timestamps`, `timestampTz`/`timestampsTz`, `year` |
-| Other | `json`, `jsonb`, `enum`, `set`, `binary`, `uuid`, `ulid`, `ipAddress`/`ip`, `macAddress`/`mac` |
-| FK | `foreignId`, `foreignUuid`, `foreignUlid` |
-| Spatial | `geometry`, `point`, … |
+| Group   | Types                                                                                                              |
+| ------- | ------------------------------------------------------------------------------------------------------------------ |
+| String  | `char`, `string`, `text`, `mediumText`, `longText`                                                                 |
+| Int     | `integer`/`int`, `tinyInteger`, `smallInteger`, `mediumInteger`, `bigInteger` + `unsigned*`                        |
+| Number  | `float`, `double`, `decimal`, `unsignedDecimal`                                                                    |
+| Bool    | `boolean`/`bool`                                                                                                   |
+| Date    | `date`, `dateTime`, `dateTimeTz`, `time`, `timeTz`, `timestamp`/`timestamps`, `timestampTz`/`timestampsTz`, `year` |
+| Other   | `json`, `jsonb`, `enum`, `set`, `binary`, `uuid`, `ulid`, `ipAddress`/`ip`, `macAddress`/`mac`                     |
+| FK      | `foreignId`, `foreignUuid`, `foreignUlid`                                                                          |
+| Spatial | `geometry`, `point`, …                                                                                             |
 
 Without `--columns`: interactive prompt, or default `name` + `description`.
 
@@ -138,27 +138,52 @@ Nested resource tetap: `module:scaffold Blog Post` → `/api/blog/posts`.
 
 ```
 app/Modules/Blog/
-  Models/…  Http/…  Services/…  Routes/api.php  Routes/api-protected.php
+  Models/…  Http/…  Services/…  Routes/api.php
 database/migrations/…   # standard path (not inside module)
 ```
+
+### Module routes = **satu file** (`Routes/api.php`)
+
+| Kapan | Cara | Hasil |
+| ----- | ---- | ----- |
+| Public CRUD | `module:scaffold Blog Post` | `Route::apiResource(...)` tanpa auth |
+| Butuh login | `module:scaffold Blog Post --auth` **atau** `API_STARTER_AUTH=true` | Middleware `auth:sanctum` **di dalam** `api.php` |
+| + permission | `--permission=posts.manage` | Tambah `api-starter.permission:…` di route yang sama |
+
+Contoh hasil `--auth`:
+
+```php
+// Routes/api.php
+Route::middleware(['auth:sanctum'])->apiResource('posts', \Modules\Blog\Http\Controllers\PostController::class);
+```
+
+**Edit 1 file saja.** Campur public + protected di `api.php` — yang butuh token pakai `Route::middleware(['auth:sanctum'])->group(...)`.
+
+Legacy `Routes/api-protected.php` (modul lama) masih di-load dengan auth di luar file. Modul baru **tidak** buat file itu. Boleh pindahkan isinya ke `api.php` lalu hapus `api-protected.php`.
 
 ```
 GET/POST /api/blog/posts
 ```
 
-| Command | Purpose |
-|---------|---------|
-| `api:scaffold` | Flat CRUD |
+| Command           | Purpose            |
+| ----------------- | ------------------ |
+| `api:scaffold`    | Flat CRUD          |
 | `module:scaffold` | CRUD inside module |
 
 ---
 
 ## Auth / Sanctum
 
-| Folder | Auth | When |
-|--------|------|------|
-| `routes/api-starter/` | Public | Default scaffold |
-| `routes/api-starter-protected/` | `auth:sanctum` | `--auth` or `API_STARTER_AUTH=true` (new scaffolds only) |
+### Flat `api:*` (dua folder — beda loader)
+
+| Folder                          | Auth           | Kapan dipakai |
+| ------------------------------- | -------------- | ------------- |
+| `routes/api-starter/`           | Public         | Default `api:scaffold` |
+| `routes/api-starter-protected/` | `auth:sanctum` | `--auth` atau `API_STARTER_AUTH=true` (scaffold baru saja) |
+
+Folder flat tetap dua karena loader tempel middleware di **luar** file. Module sudah satu file + middleware di **dalam**.
+
+### Setup Sanctum
 
 ```bash
 composer require laravel/sanctum
@@ -167,17 +192,18 @@ php artisan migrate
 php artisan api:make-auth
 ```
 
-| Method | Path | Auth |
-|--------|------|------|
-| POST | `/api/auth/register` | public |
-| POST | `/api/auth/login` | public |
-| POST | `/api/auth/forgot-password` | public |
-| POST | `/api/auth/reset-password` | public |
-| POST | `/api/auth/logout` | Bearer |
-| GET | `/api/auth/me` | Bearer |
+| Method | Path                        | Auth   |
+| ------ | --------------------------- | ------ |
+| POST   | `/api/auth/register`        | public |
+| POST   | `/api/auth/login`           | public |
+| POST   | `/api/auth/forgot-password` | public |
+| POST   | `/api/auth/reset-password`  | public |
+| POST   | `/api/auth/logout`          | Bearer |
+| GET    | `/api/auth/me`              | Bearer |
 
 Swagger **Authorize**: paste token **only** (no `Bearer ` prefix).
 
+**Security:** route tanpa `auth:sanctum` = siapa saja bisa hit. Jangan taruh data sensitif di public route.
 ---
 
 ## RBAC
@@ -198,7 +224,7 @@ Route::middleware(['api-starter.permission:posts.manage'])->…;
 Route::middleware(['api-starter.role:admin'])->…;
 ```
 
-Custom: `API_STARTER_RBAC_CHECKER` → class implementing `RbacCheckerInterface`.  
+Custom: `API_STARTER_RBAC_CHECKER` → class implementing `RbacCheckerInterface`.
 When `rbac.enabled=false`, permission/role middleware = **no-op**.
 
 ---
@@ -219,11 +245,11 @@ GOOGLE_CLIENT_SECRET=...
 GOOGLE_REDIRECT_URI="${APP_URL}/api/auth/sso/google/callback"
 ```
 
-| Method | Path |
-|--------|------|
-| POST | `/api/auth/sso/{provider}` (`access_token` or Google `id_token`) |
-| GET | `/api/auth/sso/{provider}/redirect` |
-| GET | `/api/auth/sso/{provider}/callback` |
+| Method | Path                                                             |
+| ------ | ---------------------------------------------------------------- |
+| POST   | `/api/auth/sso/{provider}` (`access_token` or Google `id_token`) |
+| GET    | `/api/auth/sso/{provider}/redirect`                              |
+| GET    | `/api/auth/sso/{provider}/callback`                              |
 
 ---
 
@@ -273,7 +299,7 @@ php artisan module:remove Blog --force
 php artisan module:remove Blog --force --keep-migration
 ```
 
-Deletes model, controller, service, requests, resource, routes, OpenAPI.  
+Deletes model, controller, service, requests, resource, routes, OpenAPI.
 Migrations deleted unless `--keep-migration`. If already migrated → `migrate:rollback` manually.
 
 ---
@@ -282,14 +308,14 @@ Migrations deleted unless `--keep-migration`. If already migrated → `migrate:r
 
 Publish `config/api-starter.php`. Highlights:
 
-| Key | Notes |
-|-----|--------|
-| `uuid_version` | `7` (default), `4`, or `1` |
-| `auth.enabled` | New scaffolds default to protected routes |
-| `modules.path` | `app/Modules` |
-| `rbac.driver` | `spatie` \| `gate` \| `custom` \| `null` |
-| `openapi.enabled` | Swagger UI + JSON |
-| `datatable.per_page` | Default page size |
+| Key                  | Notes                                     |
+| -------------------- | ----------------------------------------- |
+| `uuid_version`       | `7` (default), `4`, or `1`                |
+| `auth.enabled`       | New scaffolds default to protected routes |
+| `modules.path`       | `app/Modules`                             |
+| `rbac.driver`        | `spatie` \| `gate` \| `custom` \| `null`  |
+| `openapi.enabled`    | Swagger UI + JSON                         |
+| `datatable.per_page` | Default page size                         |
 
 Typed filter DTO: `Kindharika\ApiStarter\Support\DatatableFilter::fromRequest($request)`.
 
@@ -297,21 +323,21 @@ Typed filter DTO: `Kindharika\ApiStarter\Support\DatatableFilter::fromRequest($r
 
 ## Security
 
-- FormRequests validate scaffold fields; add policies for real apps  
-- Prefer `$fillable`; never mass-assign secrets  
-- Datatable escapes `%`/`_`; whitelist `search_columns` in production  
-- SSO: provider allowlist; Google `id_token` audience checked  
-- RBAC fail-closed when driver broken/unknown  
+- FormRequests validate scaffold fields; add policies for real apps
+- Prefer `$fillable`; never mass-assign secrets
+- Datatable escapes `%`/`_`; whitelist `search_columns` in production
+- SSO: provider allowlist; Google `id_token` audience checked
+- RBAC fail-closed when driver broken/unknown
 
 ---
 
 ## Versioning
 
-| Package | PHP | Laravel |
-|---------|-----|---------|
-| 2.2.x | ^8.3 | 11 / 12 / 13 |
-| 2.1.x | ^8.3 | 11 / 12 / 13 |
-| 1.x | ^8.2 | 11 / 12 |
+| Package | PHP  | Laravel      |
+| ------- | ---- | ------------ |
+| 2.2.x   | ^8.3 | 11 / 12 / 13 |
+| 2.1.x   | ^8.3 | 11 / 12 / 13 |
+| 1.x     | ^8.2 | 11 / 12      |
 
 ```bash
 composer require kindharika/laravel-api-starter:^2.2

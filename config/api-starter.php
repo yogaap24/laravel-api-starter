@@ -126,8 +126,9 @@ return [
     | Modular API (NEW — opt-in structure, commands use module:* namespace)
     |--------------------------------------------------------------------------
     | Existing api:* scaffolds under routes/api-starter* stay unchanged.
-    | Modules live in app/Modules/{Name} and auto-load Routes/api.php +
-    | Routes/api-protected.php under /{route_prefix}/{module-prefix}/...
+    | Modules live in app/Modules/{Name} and auto-load Routes/api.php
+    | (auth via middleware inside the file). Legacy Routes/api-protected.php
+    | still loads with auth at the loader if present.
     |
     |   php artisan module:make Blog
     |   php artisan module:scaffold Blog Post --auth

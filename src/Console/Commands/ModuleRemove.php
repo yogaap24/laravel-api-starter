@@ -48,6 +48,7 @@ class ModuleRemove extends Command
         }
 
         $tables = $this->discoverModuleTables($dir);
+        $modelNames = $this->discoverModuleModels($dir);
         $deletedMigrations = [];
         if (! $this->option('keep-migration')) {
             foreach ($tables as $table) {
@@ -56,10 +57,23 @@ class ModuleRemove extends Command
         }
 
         $prefix = ModulePaths::prefix($module);
+        $tags = [$module, $prefix, Str::studly($prefix) . '/' . Str::studly($prefix)];
+        $schemas = [];
+        foreach ($modelNames as $modelName) {
+            $tags[] = $module . '/' . $modelName;
+            $tags[] = $modelName . '/' . $modelName;
+            $schemas[] = $modelName;
+            $schemas[] = $modelName . 'Store';
+            $schemas[] = $modelName . 'Update';
+        }
+
         File::deleteDirectory($dir);
 
-        $this->removeOpenApiPathsContaining($prefix);
-        $this->removeOpenApiPathsContaining($prefix . '/');
+        $this->removeFromOpenApiIndex(
+            pathBases: [$prefix, $prefix . '/'],
+            tags: array_values(array_unique($tags)),
+            schemas: array_values(array_unique($schemas)),
+        );
         $this->purgeLegacyOpenApiFragments();
 
         foreach ($deletedMigrations as $migration) {
@@ -69,7 +83,7 @@ class ModuleRemove extends Command
             $this->warn('Deleted migration(s) — run migrate:rollback manually if already applied.');
         }
 
-        $this->info("Module [{$module}] deleted.");
+        $this->info("Module [{$module}] deleted (OpenAPI paths/tags/schemas cleaned).");
 
         return self::SUCCESS;
     }
@@ -179,15 +193,28 @@ class ModuleRemove extends Command
     protected function discoverModuleTables(string $moduleDir): array
     {
         $tables = [];
+        foreach ($this->discoverModuleModels($moduleDir) as $name) {
+            $tables[] = Str::snake(Str::pluralStudly($name));
+        }
+
+        return array_values(array_unique($tables));
+    }
+
+    /**
+     * @return list<string> Studly model class names
+     */
+    protected function discoverModuleModels(string $moduleDir): array
+    {
+        $models = [];
         foreach (File::glob($moduleDir . '/Models/*.php') ?: [] as $file) {
             $name = pathinfo((string) $file, PATHINFO_FILENAME);
             if ($name === '' || $name === 'Model') {
                 continue;
             }
-            $tables[] = Str::snake(Str::pluralStudly($name));
+            $models[] = $name;
         }
 
-        return array_values(array_unique($tables));
+        return array_values(array_unique($models));
     }
 
     /**
@@ -240,11 +267,11 @@ class ModuleRemove extends Command
         foreach (array_keys($index['paths'] ?? []) as $pathKey) {
             $trimmed = ltrim((string) $pathKey, '/');
             foreach ($pathBases as $base) {
-                $base = ltrim((string) $base, '/');
+                $base = rtrim(ltrim((string) $base, '/'), '/');
                 if ($base === '') {
                     continue;
                 }
-                if ($trimmed === $base || str_starts_with($trimmed, $base . '/') || str_contains($trimmed, $base)) {
+                if ($trimmed === $base || str_starts_with($trimmed, $base . '/')) {
                     unset($index['paths'][$pathKey]);
                     break;
                 }

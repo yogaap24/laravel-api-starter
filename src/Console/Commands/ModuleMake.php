@@ -62,16 +62,24 @@ class ModuleMake extends Command
         );
         $manifest->write($name);
 
-        // Empty route files so auto-loader has something safe.
-        $publicRoutes = $dir . '/Routes/api.php';
-        $protectedRoutes = $dir . '/Routes/api-protected.php';
+        // Single routes file — auth via middleware inside the file (see module:scaffold --auth)
+        $routes = $dir . '/Routes/api.php';
+        if (! is_file($routes) || $this->option('force')) {
+            file_put_contents($routes, <<<'PHP'
+<?php
 
-        if (! is_file($publicRoutes) || $this->option('force')) {
-            file_put_contents($publicRoutes, "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n// Public module routes\n");
-        }
+declare(strict_types=1);
 
-        if (! is_file($protectedRoutes) || $this->option('force')) {
-            file_put_contents($protectedRoutes, "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n// Protected module routes (auth + optional RBAC)\n");
+use Illuminate\Support\Facades\Route;
+
+/*
+| Module routes (ONE file).
+| Public:  Route::apiResource(...)
+| Auth:    Route::middleware(['auth:sanctum'])->group(function () { ... });
+| Legacy api-protected.php still loads if present (BC) — prefer this file.
+*/
+
+PHP);
         }
 
         $ns = ModulePaths::namespace($name);
@@ -80,10 +88,10 @@ class ModuleMake extends Command
         $this->info("Module [{$name}] created at {$dir}");
         $this->line("Namespace: {$ns}");
         $this->line("Route prefix: /{$routePrefix}");
+        $this->line('Routes file: Routes/api.php (single file)');
         $this->newLine();
-        $this->comment("Next: php artisan module:scaffold {$name} Post --columns=title:string,body:text?");
-        $this->comment('Migrations go to database/migrations (not inside module).');
-        $this->comment('Existing api:* commands unchanged.');
+        $this->comment("Next: php artisan module:scaffold {$name} --columns='title:string,body:text?'");
+        $this->comment('Auth: add --auth (writes middleware in api.php). Migrations → database/migrations.');
 
         return self::SUCCESS;
     }

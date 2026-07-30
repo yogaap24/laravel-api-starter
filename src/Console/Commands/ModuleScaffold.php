@@ -248,21 +248,22 @@ class ModuleScaffold extends Command
         string $routeUri,
         bool $protected,
     ): void {
-        $file = $protected
-            ? $moduleDir . '/Routes/api-protected.php'
-            : $moduleDir . '/Routes/api.php';
+        // Single file: Routes/api.php — auth/RBAC as middleware inside the block
+        $file = $moduleDir . '/Routes/api.php';
+        $legacyProtected = $moduleDir . '/Routes/api-protected.php';
 
-        $other = $protected
-            ? $moduleDir . '/Routes/api.php'
-            : $moduleDir . '/Routes/api-protected.php';
-
-        if (is_file($other)) {
-            $this->removeResourceRoutes($other, $resourceName, $routeUri);
+        if (is_file($legacyProtected)) {
+            $this->removeResourceRoutes($legacyProtected, $resourceName, $routeUri);
         }
 
         $controllerFqcn = $moduleNs . '\\Http\\Controllers\\' . $controller;
         $middlewareParts = [];
 
+        if ($protected) {
+            foreach (AuthConfig::middleware() as $mw) {
+                $middlewareParts[] = $mw;
+            }
+        }
         if ($permission = $this->option('permission')) {
             $middlewareParts[] = "api-starter.permission:{$permission}";
         }
@@ -284,7 +285,7 @@ class ModuleScaffold extends Command
         $contents = rtrim($contents) . "\n" . $block . "\n";
 
         file_put_contents($file, $contents);
-        $this->info('Updated routes: ' . $file);
+        $this->info('Updated routes: ' . $file . ($protected ? ' [auth:sanctum]' : ' [public]'));
     }
 
     /**

@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.5] - 2026-07-30
+
+### Changed
+- **Module routes: one file** — `Routes/api.php` only; `--auth` writes `auth:sanctum` middleware inside that file
+- `module:make` no longer creates empty `api-protected.php`
+- OpenAPI Bearer detection scans `api.php` for auth middleware (+ legacy `api-protected.php`)
+- README: when to use auth, why flat still has two folders
+
+### Fixed
+- `module:remove` whole module also strips OpenAPI tags/schemas for module models
+
+### Compatibility
+- Existing `Routes/api-protected.php` still auto-loads with outer Sanctum middleware
+
 ## [2.2.4] - 2026-07-30
 
 ### Changed
