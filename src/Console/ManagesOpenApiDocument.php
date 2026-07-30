@@ -258,7 +258,7 @@ trait ManagesOpenApiDocument
         $found = [];
         if (is_array($node)) {
             if (isset($node['$ref']) && is_string($node['$ref'])) {
-                if (preg_match('#^#/components/schemas/([^/]+)$#', $node['$ref'], $m)) {
+                if (preg_match('~^#/components/schemas/([^/]+)$~', $node['$ref'], $m)) {
                     $found[] = $m[1];
                 }
             }
