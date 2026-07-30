@@ -19,6 +19,23 @@ use Kindharika\ApiStarter\Support\DatatableFilter;
  * CRUD API controller for {{modelClass}}.
  *
  * Response envelope: { code: int, success: bool, message: string|null, data: …, meta?: array }
+ *
+ * @OA\Schema(
+ *     schema="{{modelClass}}",
+ *     type="object",
+{{openApiResourceProperties}}
+ * )
+ * @OA\Schema(
+ *     schema="{{modelClass}}Store",
+ *     type="object",
+ *     {{openApiStoreRequired}}
+{{openApiRequestProperties}}
+ * )
+ * @OA\Schema(
+ *     schema="{{modelClass}}Update",
+ *     type="object",
+{{openApiRequestProperties}}
+ * )
  */
 class {{class}} extends BaseApiController
 {

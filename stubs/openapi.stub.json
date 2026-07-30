@@ -35,7 +35,7 @@
           {
             "name": "search_columns",
             "in": "query",
-            "schema": { "type": "string", "example": "name,description" }
+            "schema": { "type": "string", "example": "{{searchColumnsExample}}" }
           },
           {
             "name": "sort_column",

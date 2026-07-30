@@ -9,6 +9,9 @@ namespace Kindharika\ApiStarter\Support;
  */
 final class ColumnDefinition
 {
+    /**
+     * @param  list<string>|null  $enumValues  Values for enum columns (a|b|c)
+     */
     public function __construct(
         public readonly string $name,
         public readonly string $type,
@@ -17,5 +20,6 @@ final class ColumnDefinition
         public readonly ?string $precision = null,
         public readonly ?string $scale = null,
         public readonly ?string $foreignTable = null,
+        public readonly ?array $enumValues = null,
     ) {}
 }

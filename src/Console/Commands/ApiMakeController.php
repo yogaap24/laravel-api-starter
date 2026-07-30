@@ -6,13 +6,19 @@ namespace Kindharika\ApiStarter\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Console\BuildsColumnReplacements;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
+use Kindharika\ApiStarter\Support\ColumnSchema;
 
 class ApiMakeController extends Command
 {
+    use BuildsColumnReplacements;
     use InteractsWithStubs;
 
-    protected $signature = 'api:make-controller {name} {--model= : The model class}';
+    protected $signature = 'api:make-controller
+                            {name}
+                            {--model= : The model class}
+                            {--columns= : Column spec for OpenAPI @OA schemas}';
 
     protected $description = 'Create a new API controller extending BaseApiController';
 
@@ -27,14 +33,22 @@ class ApiMakeController extends Command
         $modelClass = Str::studly($model);
         $route = Str::kebab(Str::pluralStudly($modelClass));
 
+        try {
+            $schema = ColumnSchema::parse((string) ($this->option('columns') ?: ''));
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
         $path = config('api-starter.paths.controller', app_path('Http/Controllers/Api')) . '/' . $name . '.php';
 
-        $this->writeStub('controller.api.stub', $path, [
+        $this->writeStub('controller.api.stub', $path, array_merge([
             'namespace' => $this->rootNamespace(),
             'class' => $name,
             'modelClass' => $modelClass,
             'route' => $route,
-        ]);
+        ], $this->columnReplacements($schema)));
 
         $this->info("API Controller [{$name}] created successfully.");
 

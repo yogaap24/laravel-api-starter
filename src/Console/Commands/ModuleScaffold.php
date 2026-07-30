@@ -18,9 +18,9 @@ class ModuleScaffold extends Command
     use InteractsWithStubs;
 
     protected $signature = 'module:scaffold
-                            {module : Module name (e.g. Blog)}
-                            {name : Resource name (e.g. Post)}
-                            {--columns= : Column spec e.g. name:string,price:decimal:10,2,status:boolean?}
+                            {module : Module name (also resource name if {name} omitted)}
+                            {name? : Resource name — omit to reuse module name}
+                            {--columns= : Column spec e.g. name:string,status:enum:draft|published}
                             {--migrate : Run migrations after generation}
                             {--force : Overwrite existing files}
                             {--auth : Protect resource with Sanctum}
@@ -30,7 +30,7 @@ class ModuleScaffold extends Command
                             {--role= : RBAC role middleware (e.g. admin)}
                             {--no-openapi : Skip OpenAPI generation}';
 
-    protected $description = 'Scaffold CRUD resource inside an API module (module:* — not api:*)';
+    protected $description = 'Scaffold CRUD resource inside an API module (one name OK: module:scaffold Course)';
 
     public function handle(): int
     {
@@ -41,7 +41,10 @@ class ModuleScaffold extends Command
         }
 
         $module = Str::studly($this->argument('module'));
-        $name = Str::studly($this->argument('name'));
+        $nameArg = $this->argument('name');
+        $name = $nameArg !== null && $nameArg !== ''
+            ? Str::studly((string) $nameArg)
+            : $module;
 
         if (! ModulePaths::exists($module)) {
             $this->warn("Module [{$module}] missing — creating skeleton…");
@@ -60,6 +63,12 @@ class ModuleScaffold extends Command
             $this->error($e->getMessage());
 
             return self::FAILURE;
+        }
+
+        foreach ($schema->columns as $col) {
+            if (in_array($col->type, ['enum', 'set'], true) && ($col->enumValues ?? []) === []) {
+                $this->warn("Column [{$col->name}] bare {$col->type} → string(64). Prefer: {$col->name}:{$col->type}:a|b|c");
+            }
         }
 
         $audit = (bool) $this->option('audit') || (bool) config('api-starter.audit.enabled', false);
@@ -88,13 +97,13 @@ class ModuleScaffold extends Command
             [
                 'stub' => 'module/controller.stub',
                 'path' => "{$moduleDir}/Http/Controllers/{$controller}.php",
-                'vars' => [
+                'vars' => array_merge([
                     'namespace' => $moduleNs,
                     'class' => $controller,
                     'modelClass' => $name,
                     'route' => $route,
                     'module' => $module,
-                ],
+                ], $cols),
             ],
             [
                 'stub' => 'module/service.stub',
@@ -153,7 +162,7 @@ class ModuleScaffold extends Command
 
         $this->writeMigration($table, $cols, $force);
         $this->appendRoute($moduleDir, $moduleNs, $controller, $route, $protected);
-        $this->writeOpenApi($module, $name, $route, $protected);
+        $this->writeOpenApi($module, $name, $route, $protected, $schema);
 
         if ($audit && ! config('api-starter.audit.enabled', false)) {
             $this->warn('Model uses Auditable but API_STARTER_AUDIT=false — enable + run api:make-audit.');
@@ -281,7 +290,7 @@ class ModuleScaffold extends Command
         }
     }
 
-    protected function writeOpenApi(string $module, string $name, string $route, bool $protected): void
+    protected function writeOpenApi(string $module, string $name, string $route, bool $protected, ColumnSchema $schema): void
     {
         if ($this->option('no-openapi') || ! config('api-starter.openapi.enabled', true)) {
             return;
@@ -301,11 +310,18 @@ class ModuleScaffold extends Command
             'module' => $module,
             'tag' => $tag,
             'route' => $pathKey,
+            'searchColumnsExample' => $schema->openApiSearchColumnsExample(),
         ]);
 
-        if ($protected) {
-            $spec = json_decode((string) file_get_contents($path), true);
-            if (is_array($spec)) {
+        $spec = json_decode((string) file_get_contents($path), true);
+        if (is_array($spec)) {
+            $spec['components'] ??= [];
+            $spec['components']['schemas'] ??= [];
+            $spec['components']['schemas'][$name] = $schema->openApiResourceSchema();
+            $spec['components']['schemas'][$name . 'Store'] = $schema->openApiStoreSchema();
+            $spec['components']['schemas'][$name . 'Update'] = $schema->openApiUpdateSchema();
+
+            if ($protected) {
                 $spec['components']['securitySchemes']['sanctum'] = [
                     'type' => 'http',
                     'scheme' => 'bearer',
@@ -323,8 +339,9 @@ class ModuleScaffold extends Command
                         $spec['paths'][$p][$method]['security'] = [['sanctum' => []]];
                     }
                 }
-                file_put_contents($path, json_encode($spec, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
             }
+
+            file_put_contents($path, json_encode($spec, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
         }
 
         $this->mergeOpenApi($dir, $path, $tag);

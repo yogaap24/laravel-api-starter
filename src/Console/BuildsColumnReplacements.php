@@ -13,6 +13,16 @@ trait BuildsColumnReplacements
      */
     protected function columnReplacements(ColumnSchema $schema, bool $audit = false): array
     {
+        $required = [];
+        foreach ($schema->columns as $c) {
+            if (! $c->nullable) {
+                $required[] = $c->name;
+            }
+        }
+        $requiredAttr = $required === []
+            ? ''
+            : 'required={"' . implode('","', $required) . '"},';
+
         return [
             'fillable' => $schema->fillableCode(),
             'casts' => $schema->castsCode(),
@@ -22,6 +32,9 @@ trait BuildsColumnReplacements
             'updateRules' => $schema->updateRules(),
             'resourceFields' => $schema->resourceFields(),
             'resourceReturnDoc' => $schema->resourceReturnDoc(),
+            'openApiResourceProperties' => $schema->openApiAnnotationProperties(),
+            'openApiRequestProperties' => $schema->openApiAnnotationRequestProperties(),
+            'openApiStoreRequired' => $requiredAttr,
             'auditableImport' => $audit
                 ? "use Kindharika\\ApiStarter\\Audit\\Auditable;\n"
                 : '',

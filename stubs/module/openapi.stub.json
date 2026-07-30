@@ -24,7 +24,7 @@
         "parameters": [
           {"name": "entries", "in": "query", "schema": {"type": "integer", "default": 15}},
           {"name": "search_key", "in": "query", "schema": {"type": "string"}},
-          {"name": "search_columns", "in": "query", "schema": {"type": "string"}},
+          {"name": "search_columns", "in": "query", "schema": {"type": "string", "example": "{{searchColumnsExample}}"}},
           {"name": "sort_column", "in": "query", "schema": {"type": "string"}},
           {"name": "sort_type", "in": "query", "schema": {"type": "string", "enum": ["asc", "desc"]}}
         ],

@@ -49,7 +49,7 @@ Creates:
 | Resource | `app/Http/Resources/PostResource.php` |
 | Migration | `database/migrations/*_create_posts_table.php` |
 | Route | `routes/api-starter/posts.php` (auto-loaded) |
-| OpenAPI | `storage/api-docs/posts.openapi.json` + merged `openapi.json` |
+| OpenAPI | `storage/api-docs/posts.openapi.json` + merged `openapi.json` (schemas ikut `--columns`) |
 
 Endpoints immediately available:
 
@@ -77,7 +77,7 @@ php artisan api:make-request Post
 php artisan api:make-migration Post
 php artisan api:make-resource Post
 php artisan api:make-route Post
-php artisan api:make-openapi Post
+php artisan api:make-openapi Post --columns=title:string,body:text?
 ```
 
 ### Swagger UI
@@ -200,6 +200,7 @@ Use when API sebaiknya dipisah per domain/modul. **Tidak mengganti** `api:scaffo
 
 ```bash
 php artisan module:make Blog
+php artisan module:scaffold Course
 php artisan module:scaffold Blog Post --columns=title:string,body:text?,published_at:timestamp?
 php artisan module:scaffold Blog Post --auth --audit --permission=posts.manage
 php artisan module:list
@@ -267,7 +268,13 @@ php artisan module:scaffold Shop Product --columns=name:string,price:decimal:10,
 
 Tanpa `--columns`, terminal interactive bisa tanya kolom (atau default `name` + `description`).
 
-Types: `string`, `text`, `integer`, `bigInteger`, `boolean`, `decimal`, `float`, `uuid`, `date`, `datetime`, `timestamp`, `json`, `foreignId`, `foreignUuid`. Suffix `?` = nullable.
+Types (Laravel Blueprint): `char`, `string`, `text`, `mediumText`, `longText`, `integer`/`tinyInteger`/`smallInteger`/`mediumInteger`/`bigInteger` (+ unsigned*), `boolean`, `float`, `double`, `decimal`, `unsignedDecimal`, `date`, `dateTime`, `dateTimeTz`, `time`, `timeTz`, `timestamp`, `timestampTz`, `year`, `json`, `jsonb`, `enum`, `set`, `binary`, `uuid`, `ulid`, `ipAddress`, `macAddress`, `foreignId`, `foreignUuid`, `foreignUlid`, spatial (`geometry`, `point`, …). Suffix `?` = nullable.
+
+Aliases: `int`→`integer`, `bool`→`boolean`, `timestamps`→`timestamp`, `timestampsTz`→`timestampTz`, `ip`→`ipAddress`, `mac`→`macAddress`.
+
+Enum/set: `status:enum:draft|published|archived` (bare `status:enum` → string(64) + warning).
+
+Note: `publish_at:timestamps` = **one** timestamp column (bukan `$table->timestamps()` — itu sudah di stub untuk `created_at`/`updated_at`).
 
 ## Audit trail (Observer)
 

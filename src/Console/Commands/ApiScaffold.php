@@ -72,10 +72,10 @@ class ApiScaffold extends Command
             'migration' => ['api:make-migration', array_merge(['name' => $name], $colFlags)],
             'request' => ['api:make-request', array_merge(['name' => $name], $colFlags)],
             'service' => ['api:make-service', ['name' => $name . 'Service', '--model' => $name]],
-            'controller' => ['api:make-controller', ['name' => $name . 'Controller', '--model' => $name]],
+            'controller' => ['api:make-controller', array_merge(['name' => $name . 'Controller', '--model' => $name], $colFlags)],
             'resource' => ['api:make-resource', array_merge(['name' => $name], $force, $colFlags)],
             'route' => ['api:make-route', array_merge(['name' => $name], $authFlags)],
-            'openapi' => ['api:make-openapi', array_merge(['name' => $name], $openapiFlags)],
+            'openapi' => ['api:make-openapi', array_merge(['name' => $name], $openapiFlags, $colFlags)],
         ];
 
         if ($this->option('no-route')) {
@@ -132,13 +132,16 @@ class ApiScaffold extends Command
         $parts = [];
         foreach ($schema->columns as $c) {
             $part = $c->name . ':' . $c->type;
-            if ($c->type === 'string' && $c->length) {
+            if (in_array($c->type, ['string', 'char'], true) && $c->length) {
                 $part .= ':' . $c->length;
             }
-            if ($c->type === 'decimal') {
+            if (in_array($c->type, ['decimal', 'unsignedDecimal', 'float', 'double'], true)) {
                 $part .= ':' . ($c->precision ?? '10') . ':' . ($c->scale ?? '2');
             }
-            if (in_array($c->type, ['foreignId', 'foreignUuid'], true) && $c->foreignTable) {
+            if (in_array($c->type, ['enum', 'set'], true) && ($c->enumValues ?? []) !== []) {
+                $part .= ':' . implode('|', $c->enumValues);
+            }
+            if (in_array($c->type, ['foreignId', 'foreignUuid', 'foreignUlid'], true) && $c->foreignTable) {
                 $part .= ':' . $c->foreignTable;
             }
             if ($c->nullable) {

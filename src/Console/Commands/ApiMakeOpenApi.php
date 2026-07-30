@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
 use Kindharika\ApiStarter\Support\AuthConfig;
+use Kindharika\ApiStarter\Support\ColumnSchema;
 
 class ApiMakeOpenApi extends Command
 {
@@ -15,6 +16,7 @@ class ApiMakeOpenApi extends Command
 
     protected $signature = 'api:make-openapi
                             {name : The resource name}
+                            {--columns= : Column spec for OpenAPI schemas}
                             {--auth : Mark operations as Sanctum-protected (sends Bearer in Swagger)}';
 
     protected $description = 'Generate OpenAPI 3 JSON for a resource (Swagger-ready)';
@@ -33,13 +35,24 @@ class ApiMakeOpenApi extends Command
         $path = $dir . '/' . $route . '.openapi.json';
         $protected = (bool) $this->option('auth') || AuthConfig::enabled();
 
+        try {
+            $schema = ColumnSchema::parse((string) ($this->option('columns') ?: ''));
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
         $this->writeStub('openapi.stub.json', $path, [
             'title' => (string) config('api-starter.openapi.title', 'API Documentation'),
             'version' => (string) config('api-starter.openapi.version', '1.0.0'),
             'serverUrl' => (string) config('api-starter.openapi.server_url', '/api'),
             'modelClass' => $modelClass,
             'route' => $route,
+            'searchColumnsExample' => $schema->openApiSearchColumnsExample(),
         ]);
+
+        $this->applyColumnSchemas($path, $modelClass, $schema);
 
         if ($protected) {
             $this->applySecurityToFile($path);
@@ -50,6 +63,22 @@ class ApiMakeOpenApi extends Command
         $this->info("OpenAPI spec written to [{$path}]" . ($protected ? ' [auth required]' : ''));
 
         return self::SUCCESS;
+    }
+
+    protected function applyColumnSchemas(string $path, string $modelClass, ColumnSchema $schema): void
+    {
+        $spec = json_decode((string) file_get_contents($path), true);
+        if (! is_array($spec)) {
+            return;
+        }
+
+        $spec['components'] ??= [];
+        $spec['components']['schemas'] ??= [];
+        $spec['components']['schemas'][$modelClass] = $schema->openApiResourceSchema();
+        $spec['components']['schemas'][$modelClass . 'Store'] = $schema->openApiStoreSchema();
+        $spec['components']['schemas'][$modelClass . 'Update'] = $schema->openApiUpdateSchema();
+
+        file_put_contents($path, json_encode($spec, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
     }
 
     protected function applySecurityToFile(string $path): void

@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-07-30
+
+### Fixed
+- `module:scaffold Course` works with **one name** (resource defaults to module name)
+- Column type **`enum`** / **`set`** supported (`status:enum:draft|published`; bare `enum` → string(64) + warn)
+- Alias `timestamps` / `timestampsTz` → `timestamp` / `timestampTz` (single column; `created_at`/`updated_at` tetap dari stub)
+
+### Added
+- Full Laravel Blueprint column types for `--columns`: char, text variants, all integers (signed/unsigned), float/double/unsignedDecimal, dateTime(Tz)/time(Tz)/year, jsonb, binary, ulid, ipAddress, macAddress, foreignUlid, spatial types
+- **OpenAPI/Swagger schemas follow `--columns`**: `{{Model}}`, `{{Model}}Store`, `{{Model}}Update` + `@OA\Schema` on controllers; `search_columns` example uses real column names
+- `api:make-openapi` / `api:make-controller` accept `--columns=`
+
 ## [2.2.0] - 2026-07-30
 
 ### Added
@@ -95,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release: BaseModel, BaseService, BaseApiController, datatable macro, scaffold commands, FCM helpers
 
+[2.2.1]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.0...2.2.1
 [2.2.0]: https://github.com/yogaap24/laravel-api-starter/compare/2.1.1...2.2.0
 [2.1.1]: https://github.com/yogaap24/laravel-api-starter/compare/2.1.0...2.1.1
 [2.1.0]: https://github.com/yogaap24/laravel-api-starter/compare/2.0.7...2.1.0
