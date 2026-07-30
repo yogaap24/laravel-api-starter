@@ -47,14 +47,28 @@ class ModuleRemove extends Command
             return self::SUCCESS;
         }
 
+        $tables = $this->discoverModuleTables($dir);
+        $deletedMigrations = [];
+        if (! $this->option('keep-migration')) {
+            foreach ($tables as $table) {
+                $deletedMigrations = array_merge($deletedMigrations, $this->deleteMigrationsForTable($table, $dir));
+            }
+        }
+
         $prefix = ModulePaths::prefix($module);
         File::deleteDirectory($dir);
 
-        // Clean OpenAPI module files
         $openapiDir = config('api-starter.paths.openapi', base_path('storage/api-docs'));
         foreach (File::glob($openapiDir . "/module-{$prefix}-*.openapi.json") ?: [] as $file) {
             File::delete($file);
-            $this->removeOpenApiPathsContaining($prefix . '/');
+        }
+        $this->removeOpenApiPathsContaining($prefix . '/');
+
+        foreach ($deletedMigrations as $migration) {
+            $this->line("Deleted: {$migration}");
+        }
+        if ($deletedMigrations !== []) {
+            $this->warn('Deleted migration(s) — run migrate:rollback manually if already applied.');
         }
 
         $this->info("Module [{$module}] deleted.");
@@ -116,18 +130,10 @@ class ModuleRemove extends Command
         }
 
         if (! $this->option('keep-migration')) {
-            $migrationDir = config('api-starter.paths.migration', database_path('migrations'));
-            foreach (File::glob($migrationDir . "/*_create_{$table}_table.php") ?: [] as $migration) {
-                if (File::delete($migration)) {
-                    $deleted[] = $migration;
-                    $this->warn("Deleted migration — rollback manually if already applied.");
-                }
-            }
-            // BC: clean legacy per-module migrations if any remain
-            foreach (File::glob("{$dir}/Database/Migrations/*_create_{$table}_table.php") ?: [] as $migration) {
-                if (File::delete($migration)) {
-                    $deleted[] = $migration;
-                }
+            $migrations = $this->deleteMigrationsForTable($table, $dir);
+            $deleted = array_merge($deleted, $migrations);
+            if ($migrations !== []) {
+                $this->warn('Deleted migration — run migrate:rollback manually if already applied.');
             }
         }
 
@@ -151,6 +157,53 @@ class ModuleRemove extends Command
         return self::SUCCESS;
     }
 
+    /**
+     * @return list<string> table names
+     */
+    protected function discoverModuleTables(string $moduleDir): array
+    {
+        $tables = [];
+        foreach (File::glob($moduleDir . '/Models/*.php') ?: [] as $file) {
+            $name = pathinfo((string) $file, PATHINFO_FILENAME);
+            if ($name === '' || $name === 'Model') {
+                continue;
+            }
+            $tables[] = Str::snake(Str::pluralStudly($name));
+        }
+
+        return array_values(array_unique($tables));
+    }
+
+    /**
+     * Delete create_* migrations for a table from standard + legacy module paths.
+     *
+     * @return list<string> deleted paths
+     */
+    protected function deleteMigrationsForTable(string $table, ?string $moduleDir = null): array
+    {
+        $deleted = [];
+        $migrationDir = config('api-starter.paths.migration', database_path('migrations'));
+
+        $patterns = [
+            $migrationDir . "/*_create_{$table}_table.php",
+            $migrationDir . "/*_create_{$table}.php",
+        ];
+        if ($moduleDir !== null) {
+            $patterns[] = $moduleDir . "/Database/Migrations/*_create_{$table}_table.php";
+            $patterns[] = $moduleDir . "/Database/Migrations/*_create_{$table}.php";
+        }
+
+        foreach ($patterns as $pattern) {
+            foreach (glob($pattern) ?: [] as $migration) {
+                if (is_file($migration) && File::delete($migration)) {
+                    $deleted[] = $migration;
+                }
+            }
+        }
+
+        return $deleted;
+    }
+
     protected function removeOpenApiPathsContaining(string $needle): void
     {
         $indexPath = config('api-starter.paths.openapi', base_path('storage/api-docs')) . '/openapi.json';
@@ -169,6 +222,7 @@ class ModuleRemove extends Command
             }
         }
 
+        // Drop schemas whose tag/path belonged to removed module resources (best-effort by name not available)
         file_put_contents($indexPath, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
     }
 }

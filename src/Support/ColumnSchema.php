@@ -123,7 +123,8 @@ final class ColumnSchema
         $types = self::supportedTypes();
         $command->info('Define model columns (empty name = done).');
         $command->comment('Types: ' . implode(', ', $types));
-        $command->comment('Enum/set values: a|b|c — timestamps as column → timestamp');
+        $command->comment('Enum/set values: a;b;c (prefer ;) or a|b|c — quote --columns in shell');
+        $command->comment('timestamps as column → timestamp (created_at/updated_at already in stub)');
 
         $columns = [];
         while (true) {
@@ -160,10 +161,8 @@ final class ColumnSchema
                 $foreignTable = trim((string) $command->ask('Foreign table', 'users')) ?: 'users';
             }
             if (in_array($type, ['enum', 'set'], true)) {
-                $raw = trim((string) $command->ask('Values (a|b|c)', ''));
-                $enumValues = $raw === ''
-                    ? []
-                    : array_values(array_filter(array_map('trim', explode('|', $raw)), static fn (string $v): bool => $v !== ''));
+                $raw = trim((string) $command->ask('Values (a;b;c or a|b|c)', ''));
+                $enumValues = self::splitEnumValues($raw);
                 if ($enumValues === []) {
                     $command->warn("No values — [{$name}] falls back to string(64).");
                 }
@@ -525,9 +524,7 @@ final class ColumnSchema
 
         if (in_array($type, ['enum', 'set'], true)) {
             $raw = trim($segments[2] ?? '');
-            $enumValues = $raw === ''
-                ? []
-                : array_values(array_filter(array_map('trim', explode('|', $raw)), static fn (string $v): bool => $v !== ''));
+            $enumValues = self::splitEnumValues($raw);
             foreach ($enumValues as $value) {
                 if (! preg_match('/^[a-zA-Z0-9_\-]+$/', $value)) {
                     throw new InvalidArgumentException("Invalid {$type} value [{$value}] for [{$name}]");
@@ -536,6 +533,26 @@ final class ColumnSchema
         }
 
         return new ColumnDefinition($name, $type, $nullable, $length, $precision, $scale, $foreignTable, $enumValues);
+    }
+
+    /**
+     * Split enum/set values. Prefer `;` (shell-safe); `|` also accepted.
+     *
+     * @return list<string>
+     */
+    public static function splitEnumValues(string $raw): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[|;]+/', $raw) ?: [];
+
+        return array_values(array_filter(
+            array_map(static fn (string $v): string => trim($v), $parts),
+            static fn (string $v): bool => $v !== ''
+        ));
     }
 
     /**

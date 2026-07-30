@@ -1,157 +1,162 @@
 # Laravel API Starter
 
-Pure **API** package for Laravel **11 / 12 / 13**. Service layer, UUID models, datatable macro, one-command CRUD scaffold + OpenAPI (Swagger).
+Pure API package for Laravel **11 / 12 / 13** (PHP **^8.3**).
 
-Requires **PHP ^8.3**. Package **2.1** adds modular APIs, RBAC adapter, and SSO — **existing `api:*` flow unchanged**.
+Scaffold CRUD + OpenAPI/Swagger, service layer, UUID models, datatable macro.  
+**2.2** adds column-driven generation, modules, RBAC adapter, SSO. Existing `api:*` flow stays.
 
-## Features
+---
 
-- UUID primary keys (default **v7**, configurable to 1 / 4)
-- JSON response envelope + pagination meta
-- Service layer (`BaseService`, `BaseServiceInterface`)
-- `BaseApiController` + API Resources
-- Eloquent `datatable()` macro (search / sort / filter / date range)
-- `php artisan api:scaffold Post` → model, migration, requests, service, controller, resource, **routes**, **OpenAPI**
-- Auto-discovery via Composer; routes under `routes/api-starter/` auto-loaded
-- **Modules** (`module:*`) — isolated API modules under `app/Modules/{Name}`
-- **RBAC adapter** — Spatie / Gate / custom (opt-in, no forced package)
-- **SSO** — Google + any Socialite provider (`api:make-sso`)
+## Table of contents
 
-## Installation
+1. [Install](#install)
+2. [Quick start (`api:scaffold`)](#quick-start-apiscaffold)
+3. [Columns (`--columns`)](#columns---columns)
+4. [Modules (`module:*`)](#modules-module)
+5. [Auth / Sanctum](#auth--sanctum)
+6. [RBAC](#rbac)
+7. [SSO](#sso)
+8. [Audit](#audit)
+9. [Swagger](#swagger)
+10. [Remove](#remove)
+11. [Config](#config)
+12. [Security](#security)
+13. [Versioning](#versioning)
+
+---
+
+## Install
 
 ```bash
 composer require kindharika/laravel-api-starter
 ```
 
-Publish config (optional):
+Optional publish:
 
 ```bash
 php artisan vendor:publish --tag=api-starter-config
 php artisan vendor:publish --tag=api-starter-stubs
 ```
 
-## Scaffold (ready-to-use CRUD)
+---
+
+## Quick start (`api:scaffold`)
 
 ```bash
 php artisan api:scaffold Post
-# or with migration:
 php artisan api:scaffold Post --migrate
 ```
-
-Creates:
 
 | Artifact | Path |
 |----------|------|
 | Model | `app/Models/Post.php` |
 | Controller | `app/Http/Controllers/Api/PostController.php` |
-| Requests | `app/Http/Requests/Post/StorePostRequest.php`, `UpdatePostRequest.php` |
-| Service | `app/Services/Post/PostService.php` (+ interface) |
+| Requests | `app/Http/Requests/Post/…` |
+| Service | `app/Services/Post/…` |
 | Resource | `app/Http/Resources/PostResource.php` |
 | Migration | `database/migrations/*_create_posts_table.php` |
-| Route | `routes/api-starter/posts.php` (auto-loaded) |
-| OpenAPI | `storage/api-docs/posts.openapi.json` + merged `openapi.json` (schemas ikut `--columns`) |
-
-Endpoints immediately available:
+| Route | `routes/api-starter/posts.php` |
+| OpenAPI | `storage/api-docs/posts.openapi.json` (+ merged `openapi.json`) |
 
 ```
-GET    /api/posts
-POST   /api/posts
-GET    /api/posts/{id}
-PUT    /api/posts/{id}
-DELETE /api/posts/{id}
+GET/POST       /api/posts
+GET/PUT/DELETE /api/posts/{id}
 ```
 
-Example body:
+Single generators: `api:make-model|controller|service|request|migration|resource|route|openapi`.
 
-```json
-{ "name": "Hello", "description": "World" }
-```
+---
 
-Individual generators:
+## Columns (`--columns`)
+
+Generate fillable, migration, validation, resource, **and Swagger schemas** from one spec.
+
+### Shell tip (important)
+
+Quote `--columns=…`. Unquoted `|` is a **shell pipe** and breaks the command.
 
 ```bash
-php artisan api:make-model Post
-php artisan api:make-controller PostController --model=Post
-php artisan api:make-service PostService --model=Post
-php artisan api:make-request Post
-php artisan api:make-migration Post
-php artisan api:make-resource Post
-php artisan api:make-route Post
-php artisan api:make-openapi Post --columns=title:string,body:text?
+# ✅ good — quotes + ; for enum (shell-safe)
+php artisan module:scaffold Course --columns='name:string,domain_course:enum:online;offline,slug:string,publish_at:timestamp,duration_minutes:int'
+
+# ✅ also OK — quotes + |
+php artisan module:scaffold Course --columns='name:string,domain_course:enum:online|offline,slug:string'
+
+# ❌ bad — shell eats |
+php artisan module:scaffold Course --columns=name:string,domain_course:enum:online|offline
 ```
 
-### Swagger UI
-
-After scaffold, package serves:
-
-- UI: `{APP_URL}/api/docs`
-- JSON: `{APP_URL}/api/docs/openapi.json`
-
-Example output:
+### Spec format
 
 ```
-CRUD endpoints:
-  GET    http://localhost/api/posts
-  POST   http://localhost/api/posts
-  ...
-
-Swagger / OpenAPI:
-  UI:   http://localhost/api/docs
-  JSON: http://localhost/api/docs/openapi.json
+name:type
+name:type?
+name:string:100
+name:decimal:10,2
+status:enum:a;b;c
+tags:set:a;b
+user_id:foreignUuid:users
 ```
 
-Controllers also include `@OA\*` annotations for `darkaonline/l5-swagger` if you prefer that package.
+- Suffix `?` = nullable  
+- Enum/set values: prefer **`;`** (or `|` inside quotes)  
+- Bare `status:enum` → `string(64)` + warning  
+- `publish_at:timestamps` → **one** `timestamp` column (`created_at`/`updated_at` already in stub)
 
-## Usage
+### Common types
 
-### Model
+| Group | Types |
+|-------|--------|
+| String | `char`, `string`, `text`, `mediumText`, `longText` |
+| Int | `integer`/`int`, `tinyInteger`, `smallInteger`, `mediumInteger`, `bigInteger` + `unsigned*` |
+| Number | `float`, `double`, `decimal`, `unsignedDecimal` |
+| Bool | `boolean`/`bool` |
+| Date | `date`, `dateTime`, `dateTimeTz`, `time`, `timeTz`, `timestamp`/`timestamps`, `timestampTz`/`timestampsTz`, `year` |
+| Other | `json`, `jsonb`, `enum`, `set`, `binary`, `uuid`, `ulid`, `ipAddress`/`ip`, `macAddress`/`mac` |
+| FK | `foreignId`, `foreignUuid`, `foreignUlid` |
+| Spatial | `geometry`, `point`, … |
 
-```php
-use Kindharika\ApiStarter\Base\BaseModel;
+Without `--columns`: interactive prompt, or default `name` + `description`.
 
-class Post extends BaseModel
-{
-    protected $table = 'posts';
-    protected $fillable = ['name', 'description'];
-}
-```
+---
 
-### Controller
+## Modules (`module:*`)
 
-```php
-use Kindharika\ApiStarter\Base\BaseApiController;
-
-class PostController extends BaseApiController
-{
-    // sendSuccess() / sendError()
-}
-```
-
-### Datatable
-
-```php
-$posts = Post::datatable($request->all())->paginate(15);
-```
-
-## Optional Sanctum auth
-
-### Route folders
-
-| Folder | Auth | Used by |
-|--------|------|---------|
-| `routes/api-starter/` | **Public** | Default scaffold + existing resources |
-| `routes/api-starter-protected/` | **`auth:sanctum`** | `api:scaffold X --auth` only |
-
-Existing files in `routes/api-starter/` stay public. `--auth` writes only into `api-starter-protected/`.
+Isolated APIs under `app/Modules/{Name}`. Does **not** replace `api:scaffold`.
 
 ```bash
-php artisan api:scaffold Post                 # → routes/api-starter/posts.php (public)
-php artisan api:scaffold CobaAuth --auth      # → routes/api-starter-protected/coba-auths.php
+php artisan module:make Blog
+php artisan module:scaffold Course
+php artisan module:scaffold Blog Post --columns='title:string,body:text?,published_at:timestamp?'
+php artisan module:scaffold Blog Post --auth --audit --permission=posts.manage
+php artisan module:list
 ```
 
-`API_STARTER_AUTH=true` only makes **new** scaffolds default to the protected folder — does not lock existing public routes.
+One name is enough: `module:scaffold Course` → module **and** model `Course`.
 
-### Auth endpoints (login / register / forgot)
+```
+app/Modules/Blog/
+  Models/…  Http/…  Services/…  Routes/api.php  Routes/api-protected.php
+database/migrations/…   # standard path (not inside module)
+```
+
+```
+GET/POST /api/blog/posts
+```
+
+| Command | Purpose |
+|---------|---------|
+| `api:scaffold` | Flat CRUD |
+| `module:scaffold` | CRUD inside module |
+
+---
+
+## Auth / Sanctum
+
+| Folder | Auth | When |
+|--------|------|------|
+| `routes/api-starter/` | Public | Default scaffold |
+| `routes/api-starter-protected/` | `auth:sanctum` | `--auth` or `API_STARTER_AUTH=true` (new scaffolds only) |
 
 ```bash
 composer require laravel/sanctum
@@ -169,75 +174,13 @@ php artisan api:make-auth
 | POST | `/api/auth/logout` | Bearer |
 | GET | `/api/auth/me` | Bearer |
 
-User model gets `HasApiTokens` **automatically** via `api:make-auth` (skip with `--skip-user-patch`).
+Swagger **Authorize**: paste token **only** (no `Bearer ` prefix).
 
-Swagger **Authorize**: paste token **only** (no `Bearer ` prefix):
+---
 
-```
-1|1qlzDsGAKirfga9dnDrvHDq8temeczVyB6d1T9LMe01fb8c8
-```
+## RBAC
 
-If protected module still 401, regenerate OpenAPI security:
-
-```bash
-php artisan api:make-openapi CobaAuth --auth
-php artisan optimize:clear
-```
-
-### Remove a module
-
-```bash
-php artisan api:remove Post
-php artisan api:remove CobaAuth --force
-php artisan api:remove Post --keep-migration
-```
-
-Deletes model, controller, service, requests, resource, routes, OpenAPI. Migration deleted unless `--keep-migration` (rollback manually if already applied).
-
-## Modular API (`module:*` — separate from `api:*`)
-
-Use when API sebaiknya dipisah per domain/modul. **Tidak mengganti** `api:scaffold`.
-
-```bash
-php artisan module:make Blog
-php artisan module:scaffold Course
-php artisan module:scaffold Blog Post --columns=title:string,body:text?,published_at:timestamp?
-php artisan module:scaffold Blog Post --auth --audit --permission=posts.manage
-php artisan module:list
-php artisan module:remove Blog Post
-php artisan module:remove Blog --force   # whole module
-```
-
-Layout:
-
-```
-app/Modules/Blog/
-  module.json
-  Models/Post.php
-  Http/Controllers/PostController.php
-  Http/Requests/Post/...
-  Http/Resources/PostResource.php
-  Services/Post/...
-  Routes/api.php              # public
-  Routes/api-protected.php    # auth:sanctum (+ optional RBAC)
-database/migrations/...       # standard path (not inside module)
-```
-
-Endpoints:
-
-```
-GET/POST       /api/blog/posts
-GET/PUT/DELETE /api/blog/posts/{id}
-```
-
-| Command | Purpose |
-|---------|---------|
-| `api:scaffold` | Flat CRUD (existing) |
-| `module:scaffold` | CRUD inside module |
-
-## RBAC (opt-in adapter)
-
-Tidak memaksa package tertentu. Aktifkan lalu pilih driver:
+Opt-in. No forced package.
 
 ```env
 API_STARTER_RBAC=true
@@ -248,60 +191,21 @@ API_STARTER_RBAC_DRIVER=spatie   # spatie | gate | custom | null
 composer require spatie/laravel-permission   # optional
 ```
 
-Middleware:
-
 ```php
 Route::middleware(['api-starter.permission:posts.manage'])->…;
 Route::middleware(['api-starter.role:admin'])->…;
 ```
 
-Custom driver: set `API_STARTER_RBAC_CHECKER` ke class yang implement `Kindharika\ApiStarter\Rbac\Contracts\RbacCheckerInterface`.
+Custom: `API_STARTER_RBAC_CHECKER` → class implementing `RbacCheckerInterface`.  
+When `rbac.enabled=false`, permission/role middleware = **no-op**.
 
-Saat `rbac.enabled=false`, middleware permission/role = **no-op** (auth tetap jalan jika route protected).
+---
 
-## Column-driven generation
-
-```bash
-php artisan api:scaffold Product --columns=name:string,price:decimal:10,2,is_active:boolean?,sku:string:64
-php artisan module:scaffold Shop Product --columns=name:string,price:decimal:10,2
-```
-
-Tanpa `--columns`, terminal interactive bisa tanya kolom (atau default `name` + `description`).
-
-Types (Laravel Blueprint): `char`, `string`, `text`, `mediumText`, `longText`, `integer`/`tinyInteger`/`smallInteger`/`mediumInteger`/`bigInteger` (+ unsigned*), `boolean`, `float`, `double`, `decimal`, `unsignedDecimal`, `date`, `dateTime`, `dateTimeTz`, `time`, `timeTz`, `timestamp`, `timestampTz`, `year`, `json`, `jsonb`, `enum`, `set`, `binary`, `uuid`, `ulid`, `ipAddress`, `macAddress`, `foreignId`, `foreignUuid`, `foreignUlid`, spatial (`geometry`, `point`, …). Suffix `?` = nullable.
-
-Aliases: `int`→`integer`, `bool`→`boolean`, `timestamps`→`timestamp`, `timestampsTz`→`timestampTz`, `ip`→`ipAddress`, `mac`→`macAddress`.
-
-Enum/set: `status:enum:draft|published|archived` (bare `status:enum` → string(64) + warning).
-
-Note: `publish_at:timestamps` = **one** timestamp column (bukan `$table->timestamps()` — itu sudah di stub untuk `created_at`/`updated_at`).
-
-## Audit trail (Observer)
-
-```bash
-php artisan api:make-audit
-php artisan migrate
-# .env: API_STARTER_AUDIT=true
-php artisan api:scaffold Post --audit
-# or on existing model: use Kindharika\ApiStarter\Audit\Auditable;
-```
-
-Drivers: `database` (default `audit_logs`) | `spatie` | `null`. Observer logs created / updated / deleted / restored; hides password fields.
-
-## Common ground (typed)
-
-- `Kindharika\ApiStarter\Support\DatatableFilter::fromRequest($request)`
-- Services: `dataTable(DatatableFilter|array): LengthAwarePaginator` — no `mixed`
-- `declare(strict_types=1)` on all stubs
-
-## SSO / Google login
-
-Additive ke `api:make-auth`. Provider manapun yang didukung Socialite:
+## SSO
 
 ```bash
 composer require laravel/socialite laravel/sanctum
 php artisan api:make-sso --providers=google
-# or: --providers=google,github,azure
 php artisan migrate
 ```
 
@@ -313,52 +217,90 @@ GOOGLE_CLIENT_SECRET=...
 GOOGLE_REDIRECT_URI="${APP_URL}/api/auth/sso/google/callback"
 ```
 
-| Method | Path | Notes |
-|--------|------|--------|
-| POST | `/api/auth/sso/{provider}` | Body: `access_token` atau Google `id_token` |
-| GET | `/api/auth/sso/{provider}/redirect` | OAuth redirect |
-| GET | `/api/auth/sso/{provider}/callback` | Returns Sanctum token |
+| Method | Path |
+|--------|------|
+| POST | `/api/auth/sso/{provider}` (`access_token` or Google `id_token`) |
+| GET | `/api/auth/sso/{provider}/redirect` |
+| GET | `/api/auth/sso/{provider}/callback` |
 
-Provider di luar allowlist → **422**. Login/register password dari `api:make-auth` tetap ada.
+---
 
-## Configuration
+## Audit
 
-```php
-return [
-    'namespace' => 'App',
-    'uuid_version' => 7, // 1 | 4 | 7 — use 4 for 1.x behavior
-    'route_prefix' => 'api',
-    'route_middleware' => ['api'],
-    'auth' => [
-        'enabled' => false, // new scaffolds default to --auth when true
-        'guard' => 'sanctum',
-    ],
-    'modules' => [
-        'enabled' => true,
-        'path' => app_path('Modules'),
-        'namespace' => 'Modules',
-    ],
-    'rbac' => [
-        'enabled' => false,
-        'driver' => 'spatie', // spatie | gate | custom | null
-    ],
-    'social' => [
-        'enabled' => false,
-        'providers' => ['google'],
-        'stateless' => true,
-    ],
-    'datatable' => [
-        'per_page' => 15,
-        'search_operator' => 'auto', // auto | like | ilike
-    ],
-    'openapi' => [
-        'enabled' => true,
-        'title' => 'API Documentation',
-        'version' => '1.0.0',
-        'server_url' => '/api',
-    ],
-];
+```bash
+php artisan api:make-audit
+php artisan migrate
+# .env: API_STARTER_AUDIT=true
+php artisan api:scaffold Post --audit
 ```
+
+Drivers: `database` | `spatie` | `null`. Trait: `Kindharika\ApiStarter\Audit\Auditable`.
+
+---
+
+## Swagger
+
+After scaffold:
+
+- UI: `{APP_URL}/api/docs`
+- JSON: `{APP_URL}/api/docs/openapi.json`
+
+Schemas (`Model` / `ModelStore` / `ModelUpdate`) follow `--columns`.  
+Controllers also get `@OA\*` for `darkaonline/l5-swagger`.
+
+```bash
+php artisan api:make-openapi Post --columns='title:string,body:text?'
+php artisan api:make-openapi CobaAuth --auth
+```
+
+---
+
+## Remove
+
+```bash
+# Flat resource
+php artisan api:remove Post
+php artisan api:remove Post --keep-migration
+
+# Module resource
+php artisan module:remove Blog Post
+
+# Whole module (also deletes related database/migrations)
+php artisan module:remove Blog --force
+php artisan module:remove Blog --force --keep-migration
+```
+
+Deletes model, controller, service, requests, resource, routes, OpenAPI.  
+Migrations deleted unless `--keep-migration`. If already migrated → `migrate:rollback` manually.
+
+---
+
+## Config
+
+Publish `config/api-starter.php`. Highlights:
+
+| Key | Notes |
+|-----|--------|
+| `uuid_version` | `7` (default), `4`, or `1` |
+| `auth.enabled` | New scaffolds default to protected routes |
+| `modules.path` | `app/Modules` |
+| `rbac.driver` | `spatie` \| `gate` \| `custom` \| `null` |
+| `openapi.enabled` | Swagger UI + JSON |
+| `datatable.per_page` | Default page size |
+
+Typed filter DTO: `Kindharika\ApiStarter\Support\DatatableFilter::fromRequest($request)`.
+
+---
+
+## Security
+
+- FormRequests validate scaffold fields; add policies for real apps  
+- Prefer `$fillable`; never mass-assign secrets  
+- Datatable escapes `%`/`_`; whitelist `search_columns` in production  
+- SSO: provider allowlist; Google `id_token` audience checked  
+- RBAC fail-closed when driver broken/unknown  
+
+---
 
 ## Versioning
 
@@ -366,23 +308,13 @@ return [
 |---------|-----|---------|
 | 2.2.x | ^8.3 | 11 / 12 / 13 |
 | 2.1.x | ^8.3 | 11 / 12 / 13 |
-| 2.0.x | ^8.3 | 11 / 12 / 13 |
 | 1.x | ^8.2 | 11 / 12 |
-
-SemVer. Breaking changes → major bump. See [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
 composer require kindharika/laravel-api-starter:^2.2
 ```
 
-## Security notes
-
-- Scaffold FormRequests validate `name` / `description`; tighten `authorize()` with policies for real apps
-- Prefer `$fillable` on models (stubs do); avoid mass-assigning secrets
-- Datatable search escapes `%` / `_` wildcards; still whitelist `search_columns` in production
-- SSO: provider allowlist enforced; Google `id_token` audience checked against `services.google.client_id`
-- RBAC: when enabled with unknown/broken driver, checks fail closed (deny)
-- Module routes inherit same public/protected split as flat scaffolds
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

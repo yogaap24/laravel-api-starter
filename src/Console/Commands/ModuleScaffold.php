@@ -67,7 +67,7 @@ class ModuleScaffold extends Command
 
         foreach ($schema->columns as $col) {
             if (in_array($col->type, ['enum', 'set'], true) && ($col->enumValues ?? []) === []) {
-                $this->warn("Column [{$col->name}] bare {$col->type} → string(64). Prefer: {$col->name}:{$col->type}:a|b|c");
+                $this->warn("Column [{$col->name}] bare {$col->type} → string(64). Prefer: {$col->name}:{$col->type}:a;b;c (quote --columns)");
             }
         }
 

@@ -139,7 +139,7 @@ class ApiScaffold extends Command
                 $part .= ':' . ($c->precision ?? '10') . ':' . ($c->scale ?? '2');
             }
             if (in_array($c->type, ['enum', 'set'], true) && ($c->enumValues ?? []) !== []) {
-                $part .= ':' . implode('|', $c->enumValues);
+                $part .= ':' . implode(';', $c->enumValues);
             }
             if (in_array($c->type, ['foreignId', 'foreignUuid', 'foreignUlid'], true) && $c->foreignTable) {
                 $part .= ':' . $c->foreignTable;
