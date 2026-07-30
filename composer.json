@@ -58,7 +58,8 @@
     "suggest": {
         "laravel/sanctum": "Required when API_STARTER_AUTH=true, scaffolding with --auth, or after SSO login",
         "laravel/socialite": "Required for api:make-sso (Google + any OAuth provider)",
-        "spatie/laravel-permission": "Optional RBAC driver when API_STARTER_RBAC=true (driver=spatie)"
+        "spatie/laravel-permission": "Optional RBAC driver when API_STARTER_RBAC=true (driver=spatie)",
+        "spatie/laravel-activitylog": "Optional audit driver when API_STARTER_AUDIT_DRIVER=spatie"
     },
     "extra": {
         "laravel": {

@@ -9,13 +9,6 @@ use Illuminate\Pagination\LengthAwarePaginator;
 /**
  * Builds the standard API JSON envelope used by BaseApiController.
  *
- * Success/error return a plain object with public properties:
- * - code (int)
- * - success (bool)
- * - message (string|array|null)
- * - data (mixed)
- * - meta (array) — only when $data is LengthAwarePaginator and include_meta=true
- *
  * @phpstan-type ResponseMeta array{
  *     current_page: int,
  *     from: int|null,
@@ -30,34 +23,37 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * @phpstan-type ResponseEnvelope array{
  *     code: int,
  *     success: bool,
- *     message: string|array|null,
- *     data: mixed,
+ *     message: string|null,
+ *     data: array|object|string|int|float|bool|null,
  *     meta?: ResponseMeta
  * }
  */
 class ResponseService
 {
-    private mixed $data;
+    /** @var array<string|int, string|int|float|bool|null|array|object>|object|string|int|float|bool|null */
+    private array|object|string|int|float|bool|null $data;
 
-    private string|array|null $message = null;
+    private ?string $message = null;
 
     private bool $success = false;
 
     private int $code = 200;
 
-    public function __construct(mixed $data = null)
+    /**
+     * @param  array<string|int, string|int|float|bool|null|array|object>|object|string|int|float|bool|null  $data
+     */
+    public function __construct(array|object|string|int|float|bool|null $data = null)
     {
         $this->data = $data;
     }
 
     /**
-     * @param  string|array<int|string, mixed>|null  $message
-     * @param  int|null  $responseCode  HTTP status code (default 200)
-     * @return object{code: int, success: bool, message: string|array|null, data: mixed, meta?: array<string, mixed>}
+     * @param  string|array<int|string, string>|null  $message
+     * @return object{code: int, success: bool, message: string|null, data: array|object|string|int|float|bool|null, meta?: array<string, int|string|null>}
      */
     public function success(string|array|null $message = null, ?int $responseCode = null): object
     {
-        $this->setMessage(empty($message) ? 'success' : $message);
+        $this->setMessage($message === null || $message === '' || $message === [] ? 'success' : $message);
         $this->code = $responseCode ?? 200;
         $this->success = true;
 
@@ -65,13 +61,12 @@ class ResponseService
     }
 
     /**
-     * @param  string|array<int|string, mixed>|null  $message
-     * @param  int|null  $responseCode  HTTP status code (default 400)
-     * @return object{code: int, success: bool, message: string|array|null, data: mixed, meta?: array<string, mixed>}
+     * @param  string|array<int|string, string>|null  $message
+     * @return object{code: int, success: bool, message: string|null, data: array|object|string|int|float|bool|null, meta?: array<string, int|string|null>}
      */
     public function error(string|array|null $message = null, ?int $responseCode = null): object
     {
-        $this->setMessage(empty($message) ? 'error' : $message);
+        $this->setMessage($message === null || $message === '' || $message === [] ? 'error' : $message);
         $this->code = $responseCode ?? 400;
         $this->success = false;
 
@@ -114,13 +109,13 @@ class ResponseService
     }
 
     /**
-     * @param  string|array<int|string, mixed>|null  $message
+     * @param  string|array<int|string, string>  $message
      */
-    private function setMessage(string|array|null $message): void
+    private function setMessage(string|array $message): void
     {
         if (is_array($message)) {
             $extract = array_values($message);
-            $this->message = $extract[0] ?? 'success';
+            $this->message = isset($extract[0]) ? (string) $extract[0] : 'success';
         } else {
             $this->message = $message;
         }

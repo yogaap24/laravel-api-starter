@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{namespace}}\Http\Controllers;
 
 use {{namespace}}\Http\Requests\{{modelClass}}\Store{{modelClass}}Request;
@@ -7,15 +9,14 @@ use {{namespace}}\Http\Requests\{{modelClass}}\Update{{modelClass}}Request;
 use {{namespace}}\Http\Resources\{{modelClass}}Resource;
 use {{namespace}}\Models\{{modelClass}};
 use {{namespace}}\Services\{{modelClass}}\{{modelClass}}Service;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Kindharika\ApiStarter\Base\BaseApiController;
+use Kindharika\ApiStarter\Support\DatatableFilter;
 
 /**
  * Module CRUD controller for {{modelClass}}.
- *
- * Response envelope: { code: int, success: bool, message: string|null, data: mixed, meta?: array }
  */
 class {{class}} extends BaseApiController
 {
@@ -26,25 +27,15 @@ class {{class}} extends BaseApiController
         parent::__construct($request);
     }
 
-    /**
-     * List {{modelClass}} (paginated).
-     *
-     * @return JsonResponse  data: list + meta
-     */
     public function index(Request $request): JsonResponse
     {
         /** @var LengthAwarePaginator<int, {{modelClass}}> $paginator */
-        $paginator = $this->service->dataTable($request->all());
-        $paginator->through(fn ($item) => (new {{modelClass}}Resource($item))->resolve());
+        $paginator = $this->service->dataTable(DatatableFilter::fromRequest($request));
+        $paginator->through(fn ({{modelClass}} $item): array => (new {{modelClass}}Resource($item))->resolve());
 
         return $this->sendSuccess($paginator, null, 200);
     }
 
-    /**
-     * Create {{modelClass}}.
-     *
-     * @return JsonResponse  HTTP 201
-     */
     public function store(Store{{modelClass}}Request $request): JsonResponse
     {
         /** @var {{modelClass}} $data */
@@ -76,8 +67,6 @@ class {{class}} extends BaseApiController
     }
 
     /**
-     * Soft-delete by UUID.
-     *
      * @param  string  $id  UUID primary key
      */
     public function destroy(string $id): JsonResponse

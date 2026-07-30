@@ -6,21 +6,26 @@ namespace Kindharika\ApiStarter\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Console\BuildsColumnReplacements;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
 use Kindharika\ApiStarter\Modules\ModulePaths;
 use Kindharika\ApiStarter\Support\AuthConfig;
+use Kindharika\ApiStarter\Support\ColumnSchema;
 
 class ModuleScaffold extends Command
 {
+    use BuildsColumnReplacements;
     use InteractsWithStubs;
 
     protected $signature = 'module:scaffold
                             {module : Module name (e.g. Blog)}
                             {name : Resource name (e.g. Post)}
+                            {--columns= : Column spec e.g. name:string,price:decimal:10,2,status:boolean?}
                             {--migrate : Run migrations after generation}
                             {--force : Overwrite existing files}
                             {--auth : Protect resource with Sanctum}
                             {--public : Force public routes}
+                            {--audit : Attach Auditable trait (observer audit trail)}
                             {--permission= : RBAC permission middleware (e.g. posts.manage)}
                             {--role= : RBAC role middleware (e.g. admin)}
                             {--no-openapi : Skip OpenAPI generation}';
@@ -46,6 +51,20 @@ class ModuleScaffold extends Command
             }
         }
 
+        try {
+            $schema = ColumnSchema::resolve(
+                $this->option('columns') !== null ? (string) $this->option('columns') : null,
+                $this
+            );
+        } catch (\InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        $audit = (bool) $this->option('audit') || (bool) config('api-starter.audit.enabled', false);
+        $cols = $this->columnReplacements($schema, $audit);
+
         $moduleNs = ModulePaths::namespace($module);
         $moduleDir = ModulePaths::module($module);
         $force = (bool) $this->option('force');
@@ -54,15 +73,17 @@ class ModuleScaffold extends Command
         $route = Str::kebab(Str::pluralStudly($name));
         $controller = $name . 'Controller';
 
+        $this->line('Columns: ' . implode(', ', $schema->names()));
+
         $files = [
             [
                 'stub' => 'module/model.stub',
                 'path' => "{$moduleDir}/Models/{$name}.php",
-                'vars' => [
+                'vars' => array_merge([
                     'namespace' => $moduleNs . '\\Models',
                     'class' => $name,
                     'table' => $table,
-                ],
+                ], $cols),
             ],
             [
                 'stub' => 'module/controller.stub',
@@ -96,28 +117,28 @@ class ModuleScaffold extends Command
             [
                 'stub' => 'module/request.store.stub',
                 'path' => "{$moduleDir}/Http/Requests/{$name}/Store{$name}Request.php",
-                'vars' => [
+                'vars' => array_merge([
                     'namespace' => $moduleNs,
                     'class' => "Store{$name}Request",
                     'modelClass' => $name,
-                ],
+                ], $cols),
             ],
             [
                 'stub' => 'module/request.update.stub',
                 'path' => "{$moduleDir}/Http/Requests/{$name}/Update{$name}Request.php",
-                'vars' => [
+                'vars' => array_merge([
                     'namespace' => $moduleNs,
                     'class' => "Update{$name}Request",
                     'modelClass' => $name,
-                ],
+                ], $cols),
             ],
             [
                 'stub' => 'module/resource.stub',
                 'path' => "{$moduleDir}/Http/Resources/{$name}Resource.php",
-                'vars' => [
+                'vars' => array_merge([
                     'namespace' => $moduleNs . '\\Http\\Resources',
                     'class' => $name . 'Resource',
-                ],
+                ], $cols),
             ],
         ];
 
@@ -130,14 +151,16 @@ class ModuleScaffold extends Command
             $this->info("Created: {$file['path']}");
         }
 
-        $this->writeMigration($moduleDir, $table, $name, $force);
+        $this->writeMigration($table, $cols, $force);
         $this->appendRoute($moduleDir, $moduleNs, $controller, $route, $protected);
         $this->writeOpenApi($module, $name, $route, $protected);
 
+        if ($audit && ! config('api-starter.audit.enabled', false)) {
+            $this->warn('Model uses Auditable but API_STARTER_AUDIT=false — enable + run api:make-audit.');
+        }
+
         if ($this->option('migrate')) {
-            $this->call('migrate', [
-                '--path' => 'app/Modules/' . $module . '/Database/Migrations',
-            ]);
+            $this->call('migrate');
         }
 
         $prefix = trim((string) config('api-starter.route_prefix', 'api'), '/');
@@ -147,21 +170,9 @@ class ModuleScaffold extends Command
 
         $this->newLine();
         $this->info("Module scaffold [{$module}/{$name}] done.");
-        $this->line('CRUD:');
-        $this->line("  GET    {$resourceUrl}");
-        $this->line("  POST   {$resourceUrl}");
-        $this->line("  GET    {$resourceUrl}/{id}");
-        $this->line("  PUT    {$resourceUrl}/{id}");
-        $this->line("  DELETE {$resourceUrl}/{id}");
-        $this->line('Auth: ' . ($protected ? 'ON (api-protected.php)' : 'OFF (api.php)'));
-
-        if ($this->option('permission') || $this->option('role')) {
-            $this->line('RBAC: permission=' . ($this->option('permission') ?: '-')
-                . ' role=' . ($this->option('role') ?: '-'));
-            if (! config('api-starter.rbac.enabled', false)) {
-                $this->warn('RBAC middleware attached but api-starter.rbac.enabled=false (no-op until enabled).');
-            }
-        }
+        $this->line("  GET/POST {$resourceUrl}");
+        $this->line('Migration: database/migrations (standard path)');
+        $this->line('Auth: ' . ($protected ? 'ON' : 'OFF') . ' | Audit: ' . ($audit ? 'ON' : 'OFF'));
 
         return self::SUCCESS;
     }
@@ -179,9 +190,12 @@ class ModuleScaffold extends Command
         return AuthConfig::enabled();
     }
 
-    protected function writeMigration(string $moduleDir, string $table, string $name, bool $force): void
+    /**
+     * @param  array<string, string>  $cols
+     */
+    protected function writeMigration(string $table, array $cols, bool $force): void
     {
-        $dir = $moduleDir . '/Database/Migrations';
+        $dir = config('api-starter.paths.migration', database_path('migrations'));
         $this->ensureDirectoryExists($dir);
 
         $existing = glob($dir . "/*_create_{$table}_table.php") ?: [];
@@ -198,9 +212,9 @@ class ModuleScaffold extends Command
         }
 
         $filename = date('Y_m_d_His') . "_create_{$table}_table.php";
-        $this->writeStub('module/migration.stub', $dir . '/' . $filename, [
+        $this->writeStub('migration.stub', $dir . '/' . $filename, array_merge([
             'table' => $table,
-        ]);
+        ], $cols));
         $this->info("Created: {$dir}/{$filename}");
     }
 
@@ -219,7 +233,6 @@ class ModuleScaffold extends Command
             ? $moduleDir . '/Routes/api.php'
             : $moduleDir . '/Routes/api-protected.php';
 
-        // Remove from the other file if switching.
         if (is_file($other)) {
             $this->removeRouteLine($other, $route);
         }
@@ -241,13 +254,12 @@ class ModuleScaffold extends Command
             $line = "Route::apiResource('{$route}', \\{$controllerFqcn}::class);";
         }
 
-        $contents = is_file($file) ? (string) file_get_contents($file) : "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n";
+        $contents = is_file($file) ? (string) file_get_contents($file) : "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n";
 
         if (! str_contains($contents, 'use Illuminate\\Support\\Facades\\Route;')) {
-            $contents = preg_replace('/^<\?php\s*/', "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n", $contents, 1) ?? $contents;
+            $contents = preg_replace('/^<\?php\s*/', "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n", $contents, 1) ?? $contents;
         }
 
-        // Replace existing resource line for same route.
         $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($route, '/') . '\'.*$/m';
         if (preg_match($pattern, $contents)) {
             $contents = preg_replace($pattern, $line, $contents) ?? $contents;

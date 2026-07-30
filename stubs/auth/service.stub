@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{namespace}}\Services\Auth;
 
 use Illuminate\Auth\Events\PasswordReset;

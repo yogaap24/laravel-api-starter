@@ -8,7 +8,9 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Kindharika\ApiStarter\Audit\AuditManager;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeAuth;
+use Kindharika\ApiStarter\Console\Commands\ApiMakeAudit;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeController;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeMigration;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeModel;
@@ -42,6 +44,7 @@ class ApiStarterServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(RbacManager::class);
+        $this->app->singleton(AuditManager::class);
     }
 
     public function boot(): void
@@ -52,6 +55,7 @@ class ApiStarterServiceProvider extends ServiceProvider
                 ApiScaffold::class,
                 ApiRemove::class,
                 ApiMakeAuth::class,
+                ApiMakeAudit::class,
                 ApiMakeSso::class,
                 ApiMakeController::class,
                 ApiMakeMigration::class,
@@ -81,7 +85,6 @@ class ApiStarterServiceProvider extends ServiceProvider
         (new DatatableMacro)->register();
         $this->loadScaffoldedRoutes();
         $this->loadModuleRoutes();
-        $this->loadModuleMigrations();
         $this->registerOpenApiRoutes();
     }
 
@@ -155,24 +158,6 @@ class ApiStarterServiceProvider extends ServiceProvider
                 Route::middleware(array_values(array_unique($middleware)))
                     ->prefix($modulePrefix)
                     ->group($protectedFile);
-            }
-        }
-    }
-
-    protected function loadModuleMigrations(): void
-    {
-        if (! config('api-starter.modules.enabled', true)) {
-            return;
-        }
-
-        if (! config('api-starter.modules.load_migrations', true)) {
-            return;
-        }
-
-        foreach (ModulePaths::list() as $module) {
-            $path = ModulePaths::module($module) . '/Database/Migrations';
-            if (is_dir($path)) {
-                $this->loadMigrationsFrom($path);
             }
         }
     }

@@ -116,10 +116,17 @@ class ModuleRemove extends Command
         }
 
         if (! $this->option('keep-migration')) {
-            foreach (File::glob("{$dir}/Database/Migrations/*_create_{$table}_table.php") ?: [] as $migration) {
+            $migrationDir = config('api-starter.paths.migration', database_path('migrations'));
+            foreach (File::glob($migrationDir . "/*_create_{$table}_table.php") ?: [] as $migration) {
                 if (File::delete($migration)) {
                     $deleted[] = $migration;
                     $this->warn("Deleted migration — rollback manually if already applied.");
+                }
+            }
+            // BC: clean legacy per-module migrations if any remain
+            foreach (File::glob("{$dir}/Database/Migrations/*_create_{$table}_table.php") ?: [] as $migration) {
+                if (File::delete($migration)) {
+                    $deleted[] = $migration;
                 }
             }
         }

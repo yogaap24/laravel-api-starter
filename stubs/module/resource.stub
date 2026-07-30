@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{namespace}};
 
 use Illuminate\Http\Request;
@@ -9,26 +11,18 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Module API Resource.
  *
  * @mixin \Illuminate\Database\Eloquent\Model
- *
- * @property string $id
- * @property string|null $name
- * @property string|null $description
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
  */
 class {{class}} extends JsonResource
 {
     /**
-     * @return array<string, mixed>
+     * @return array{
+     *     {{resourceReturnDoc}}
+     * }
      */
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
-            'name' => $this->name,
-            'description' => $this->description,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
+{{resourceFields}}
         ];
     }
 }

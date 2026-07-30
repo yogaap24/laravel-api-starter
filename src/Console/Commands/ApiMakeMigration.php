@@ -6,15 +6,21 @@ namespace Kindharika\ApiStarter\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Kindharika\ApiStarter\Console\BuildsColumnReplacements;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
+use Kindharika\ApiStarter\Support\ColumnSchema;
 
 class ApiMakeMigration extends Command
 {
+    use BuildsColumnReplacements;
     use InteractsWithStubs;
 
-    protected $signature = 'api:make-migration {name} {--table= : The table name}';
+    protected $signature = 'api:make-migration
+                            {name}
+                            {--table= : The table name}
+                            {--columns= : Column spec e.g. name:string,description:text?}';
 
-    protected $description = 'Create a new API-ready migration with UUID primary key';
+    protected $description = 'Create a new API-ready migration with UUID primary key (database/migrations)';
 
     public function handle(): int
     {
@@ -24,9 +30,12 @@ class ApiMakeMigration extends Command
         $filename = "{$timestamp}_create_{$table}_table.php";
         $path = config('api-starter.paths.migration', database_path('migrations')) . '/' . $filename;
 
-        $this->writeStub('migration.stub', $path, [
+        $schema = ColumnSchema::parse((string) ($this->option('columns') ?: ''));
+        $cols = $this->columnReplacements($schema, false);
+
+        $this->writeStub('migration.stub', $path, array_merge([
             'table' => $table,
-        ]);
+        ], $cols));
 
         $this->info("Migration [{$filename}] created successfully.");
 

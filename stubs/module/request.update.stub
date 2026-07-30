@@ -1,16 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{namespace}}\Http\Requests\{{modelClass}};
 
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Validates update {{modelClass}} payload (module, partial allowed).
- *
- * @property-read string|null $name
- * @property-read string|null $description
- *
- * @method array{name?: string, description?: string|null} validated($key = null, $default = null)
+ * Validates update {{modelClass}} payload (module).
  */
 class {{class}} extends FormRequest
 {
@@ -25,8 +22,7 @@ class {{class}} extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['sometimes', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
+{{updateRules}}
         ];
     }
 }

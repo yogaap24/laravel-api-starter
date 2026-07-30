@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-07-30
+
+### Added
+- **Typed common ground**: `DatatableFilter` DTO; `BaseServiceInterface` without `mixed`
+- **Column-driven scaffold**: `--columns=name:string,price:decimal:10,2,status:boolean?` (+ interactive prompt)
+- **Audit trail**: `Auditable` trait + `AuditObserver` + drivers `database` | `spatie` | `null`
+  - `php artisan api:make-audit`
+  - `--audit` on `api:scaffold` / `module:scaffold`
+- `declare(strict_types=1)` on all generation stubs
+
+### Changed
+- Module migrations now write to **`database/migrations`** (standard path) — no longer per-module
+- Response/service helpers use union types instead of `mixed`
+- Removed `modules.load_migrations` config (obsolete)
+
+### Backward compatibility
+- Existing generated app code still runs; re-scaffold to get typed services/controllers
+- Legacy `app/Modules/*/Database/Migrations` folders ignored going forward
+
 ## [2.1.1] - 2026-07-30
 
 ### Added
@@ -76,6 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release: BaseModel, BaseService, BaseApiController, datatable macro, scaffold commands, FCM helpers
 
+[2.2.0]: https://github.com/yogaap24/laravel-api-starter/compare/2.1.1...2.2.0
 [2.1.1]: https://github.com/yogaap24/laravel-api-starter/compare/2.1.0...2.1.1
 [2.1.0]: https://github.com/yogaap24/laravel-api-starter/compare/2.0.7...2.1.0
 [2.0.0]: https://github.com/yogaap24/laravel-api-starter/compare/1.0.0...2.0.0

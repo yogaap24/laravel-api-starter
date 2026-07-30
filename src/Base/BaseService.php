@@ -6,6 +6,7 @@ namespace Kindharika\ApiStarter\Base;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * Service-layer base. Hold Eloquent model instance; expose auth helper + response helpers.
@@ -28,19 +29,14 @@ abstract class BaseService
         $this->debug = (bool) config('app.debug', false);
     }
 
-    /**
-     * Currently authenticated user for the configured guard.
-     *
-     * @return Authenticatable|null
-     */
-    public function getUserAuth(): mixed
+    public function getUserAuth(): ?Authenticatable
     {
-        return auth($this->guard)->user();
+        /** @var Authenticatable|null $user */
+        $user = auth($this->guard)->user();
+
+        return $user;
     }
 
-    /**
-     * Underlying Eloquent model instance injected into this service.
-     */
     public function getTableInstance(): Model
     {
         return $this->model;
@@ -49,26 +45,44 @@ abstract class BaseService
     /**
      * Build success envelope object (not HTTP response — prefer controller sendSuccess).
      *
-     * @param  mixed  $data
-     * @param  string|null  $message
-     * @param  int|null  $statusCode
-     * @return object{code: int, success: bool, message: string|array|null, data: mixed, meta?: array<string, mixed>}
+     * @param  array<string|int, string|int|float|bool|null|array|object>|object|string|int|float|bool|null  $data
+     * @return object{code: int, success: bool, message: string|null, data: array|object|string|int|float|bool|null, meta?: array<string, int|string|null>}
      */
-    protected function sendSuccess(mixed $data = null, ?string $message = null, ?int $statusCode = null): object
-    {
+    protected function sendSuccess(
+        array|object|string|int|float|bool|null $data = null,
+        ?string $message = null,
+        ?int $statusCode = null,
+    ): object {
         return (new ResponseService($data))->success($message, $statusCode);
     }
 
     /**
-     * Build error envelope object (not HTTP response — prefer controller sendError).
-     *
-     * @param  mixed  $data
-     * @param  string|null  $message
-     * @param  int|null  $statusCode
-     * @return object{code: int, success: bool, message: string|array|null, data: mixed, meta?: array<string, mixed>}
+     * @param  array<string|int, string|int|float|bool|null|array|object>|object|string|int|float|bool|null  $data
+     * @return object{code: int, success: bool, message: string|null, data: array|object|string|int|float|bool|null, meta?: array<string, int|string|null>}
      */
-    protected function sendError(mixed $data = null, ?string $message = null, ?int $statusCode = null): object
-    {
+    protected function sendError(
+        array|object|string|int|float|bool|null $data = null,
+        ?string $message = null,
+        ?int $statusCode = null,
+    ): object {
         return (new ResponseService($data))->error($message, $statusCode);
+    }
+
+    /**
+     * Normalize FormRequest|array payload to associative array.
+     *
+     * @param  FormRequest|array<string, string|int|float|bool|null|array<int|string, string|int|float|bool|null>>  $data
+     * @return array<string, string|int|float|bool|null|array<int|string, string|int|float|bool|null>>
+     */
+    protected function extractPayload(FormRequest|array $data): array
+    {
+        if ($data instanceof FormRequest) {
+            /** @var array<string, string|int|float|bool|null|array<int|string, string|int|float|bool|null>> $validated */
+            $validated = $data->validated();
+
+            return $validated;
+        }
+
+        return $data;
     }
 }

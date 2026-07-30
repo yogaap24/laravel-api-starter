@@ -1,16 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{namespace}}\Http\Requests\{{modelClass}};
 
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * Validates store {{modelClass}} payload.
- *
- * @property-read string $name
- * @property-read string|null $description
- *
- * @method array{name: string, description?: string|null} validated($key = null, $default = null)
  */
 class {{class}} extends FormRequest
 {
@@ -25,8 +22,7 @@ class {{class}} extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
+{{storeRules}}
         ];
     }
 }

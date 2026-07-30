@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{namespace}}\Services\{{modelClass}};
 
 use Kindharika\ApiStarter\Base\BaseServiceInterface;
 
 /**
- * Contract for {{modelClass}} service (see BaseServiceInterface for param/return types).
+ * Contract for {{modelClass}} service (see BaseServiceInterface).
  */
 interface {{class}} extends BaseServiceInterface
 {

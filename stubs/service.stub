@@ -1,12 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{namespace}}\Services\{{modelClass}};
 
 use {{namespace}}\Models\{{modelClass}};
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 use Kindharika\ApiStarter\Base\BaseService;
 use Kindharika\ApiStarter\Base\BaseServiceInterface;
+use Kindharika\ApiStarter\Support\DatatableFilter;
 
 /**
  * Business logic for {{modelClass}} CRUD + datatable.
@@ -19,59 +23,51 @@ class {{class}} extends BaseService implements BaseServiceInterface
     }
 
     /**
-     * @param  array<string, mixed>|FormRequest|mixed  $filter
+     * @param  DatatableFilter|array<string, string|int|float|bool|null>  $filter
      * @return LengthAwarePaginator<int, {{modelClass}}>
      */
-    public function dataTable(mixed $filter): mixed
+    public function dataTable(DatatableFilter|array $filter): LengthAwarePaginator
     {
-        $perPage = (int) ($filter['entries'] ?? config('api-starter.datatable.per_page', 15));
+        $filter = $filter instanceof DatatableFilter
+            ? $filter
+            : DatatableFilter::fromArray($filter);
 
-        return {{modelClass}}::query()
-            ->datatable(is_array($filter) ? $filter : [])
-            ->paginate($perPage);
+        /** @var LengthAwarePaginator<int, {{modelClass}}> $paginator */
+        $paginator = {{modelClass}}::query()
+            ->datatable($filter->toArray())
+            ->paginate($filter->entries);
+
+        return $paginator;
     }
 
-    /**
-     * @param  string  $id  UUID primary key
-     * @return {{modelClass}}
-     */
-    public function getById(mixed $id): mixed
+    public function getById(string $id): Model
     {
         return {{modelClass}}::query()->findOrFail($id);
     }
 
     /**
-     * @param  FormRequest|array<string, mixed>|mixed  $data
-     * @return {{modelClass}}
+     * @param  FormRequest|array<string, string|int|float|bool|null|array<int|string, string|int|float|bool|null>>  $data
      */
-    public function create(mixed $data): mixed
+    public function create(FormRequest|array $data): Model
     {
-        $payload = method_exists($data, 'validated') ? $data->validated() : (array) $data;
-
-        return {{modelClass}}::query()->create($payload);
+        return {{modelClass}}::query()->create($this->extractPayload($data));
     }
 
     /**
-     * @param  string  $id  UUID primary key
-     * @param  FormRequest|array<string, mixed>|mixed  $data
-     * @return {{modelClass}}
+     * @param  FormRequest|array<string, string|int|float|bool|null|array<int|string, string|int|float|bool|null>>  $data
      */
-    public function update(mixed $id, mixed $data): mixed
+    public function update(string $id, FormRequest|array $data): Model
     {
         $model = {{modelClass}}::query()->findOrFail($id);
-        $payload = method_exists($data, 'validated') ? $data->validated() : (array) $data;
-        $model->update($payload);
+        $model->update($this->extractPayload($data));
 
-        return $model->fresh();
+        /** @var {{modelClass}} $fresh */
+        $fresh = $model->fresh();
+
+        return $fresh;
     }
 
-    /**
-     * Soft-delete and return the deleted model.
-     *
-     * @param  string  $id  UUID primary key
-     * @return {{modelClass}}
-     */
-    public function delete(mixed $id): mixed
+    public function delete(string $id): Model
     {
         $model = {{modelClass}}::query()->findOrFail($id);
         $model->delete();

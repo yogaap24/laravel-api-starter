@@ -138,7 +138,24 @@ return [
         'enabled' => (bool) env('API_STARTER_MODULES', true),
         'path' => app_path('Modules'),
         'namespace' => 'Modules',
-        'load_migrations' => (bool) env('API_STARTER_MODULES_MIGRATE', true),
+        // Migrations always use database/migrations (standard Laravel path).
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Audit Trail (Observer + Auditable trait)
+    |--------------------------------------------------------------------------
+    |   php artisan api:make-audit
+    |   php artisan module:scaffold Blog Post --audit
+    |   php artisan api:scaffold Post --audit
+    |
+    | Drivers: database (audit_logs table) | spatie | null
+    | Host (optional): composer require spatie/laravel-activitylog
+    */
+    'audit' => [
+        'enabled' => (bool) env('API_STARTER_AUDIT', false),
+        'driver' => env('API_STARTER_AUDIT_DRIVER', 'database'), // database|spatie|null
+        'table' => env('API_STARTER_AUDIT_TABLE', 'audit_logs'),
     ],
 
     /*

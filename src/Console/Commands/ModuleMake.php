@@ -49,7 +49,6 @@ class ModuleMake extends Command
             $dir . '/Http/Resources',
             $dir . '/Services',
             $dir . '/Routes',
-            $dir . '/Database/Migrations',
         ];
 
         foreach ($dirs as $path) {
@@ -68,11 +67,11 @@ class ModuleMake extends Command
         $protectedRoutes = $dir . '/Routes/api-protected.php';
 
         if (! is_file($publicRoutes) || $this->option('force')) {
-            file_put_contents($publicRoutes, "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n// Public module routes\n");
+            file_put_contents($publicRoutes, "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n// Public module routes\n");
         }
 
         if (! is_file($protectedRoutes) || $this->option('force')) {
-            file_put_contents($protectedRoutes, "<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n// Protected module routes (auth + optional RBAC)\n");
+            file_put_contents($protectedRoutes, "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n// Protected module routes (auth + optional RBAC)\n");
         }
 
         $ns = ModulePaths::namespace($name);
@@ -82,7 +81,8 @@ class ModuleMake extends Command
         $this->line("Namespace: {$ns}");
         $this->line("Route prefix: /{$routePrefix}");
         $this->newLine();
-        $this->comment("Next: php artisan module:scaffold {$name} Post");
+        $this->comment("Next: php artisan module:scaffold {$name} Post --columns=title:string,body:text?");
+        $this->comment('Migrations go to database/migrations (not inside module).');
         $this->comment('Existing api:* commands unchanged.');
 
         return self::SUCCESS;

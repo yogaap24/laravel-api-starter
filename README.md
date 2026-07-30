@@ -200,8 +200,8 @@ Use when API sebaiknya dipisah per domain/modul. **Tidak mengganti** `api:scaffo
 
 ```bash
 php artisan module:make Blog
-php artisan module:scaffold Blog Post
-php artisan module:scaffold Blog Post --auth --permission=posts.manage
+php artisan module:scaffold Blog Post --columns=title:string,body:text?,published_at:timestamp?
+php artisan module:scaffold Blog Post --auth --audit --permission=posts.manage
 php artisan module:list
 php artisan module:remove Blog Post
 php artisan module:remove Blog --force   # whole module
@@ -219,7 +219,7 @@ app/Modules/Blog/
   Services/Post/...
   Routes/api.php              # public
   Routes/api-protected.php    # auth:sanctum (+ optional RBAC)
-  Database/Migrations/...
+database/migrations/...       # standard path (not inside module)
 ```
 
 Endpoints:
@@ -257,6 +257,35 @@ Route::middleware(['api-starter.role:admin'])->…;
 Custom driver: set `API_STARTER_RBAC_CHECKER` ke class yang implement `Kindharika\ApiStarter\Rbac\Contracts\RbacCheckerInterface`.
 
 Saat `rbac.enabled=false`, middleware permission/role = **no-op** (auth tetap jalan jika route protected).
+
+## Column-driven generation
+
+```bash
+php artisan api:scaffold Product --columns=name:string,price:decimal:10,2,is_active:boolean?,sku:string:64
+php artisan module:scaffold Shop Product --columns=name:string,price:decimal:10,2
+```
+
+Tanpa `--columns`, terminal interactive bisa tanya kolom (atau default `name` + `description`).
+
+Types: `string`, `text`, `integer`, `bigInteger`, `boolean`, `decimal`, `float`, `uuid`, `date`, `datetime`, `timestamp`, `json`, `foreignId`, `foreignUuid`. Suffix `?` = nullable.
+
+## Audit trail (Observer)
+
+```bash
+php artisan api:make-audit
+php artisan migrate
+# .env: API_STARTER_AUDIT=true
+php artisan api:scaffold Post --audit
+# or on existing model: use Kindharika\ApiStarter\Audit\Auditable;
+```
+
+Drivers: `database` (default `audit_logs`) | `spatie` | `null`. Observer logs created / updated / deleted / restored; hides password fields.
+
+## Common ground (typed)
+
+- `Kindharika\ApiStarter\Support\DatatableFilter::fromRequest($request)`
+- Services: `dataTable(DatatableFilter|array): LengthAwarePaginator` — no `mixed`
+- `declare(strict_types=1)` on all stubs
 
 ## SSO / Google login
 
@@ -328,6 +357,7 @@ return [
 
 | Package | PHP | Laravel |
 |---------|-----|---------|
+| 2.2.x | ^8.3 | 11 / 12 / 13 |
 | 2.1.x | ^8.3 | 11 / 12 / 13 |
 | 2.0.x | ^8.3 | 11 / 12 / 13 |
 | 1.x | ^8.2 | 11 / 12 |
@@ -335,7 +365,7 @@ return [
 SemVer. Breaking changes → major bump. See [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-composer require kindharika/laravel-api-starter:^2.1
+composer require kindharika/laravel-api-starter:^2.2
 ```
 
 ## Security notes
