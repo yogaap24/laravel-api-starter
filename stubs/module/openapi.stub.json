@@ -20,7 +20,7 @@
       "get": {
         "tags": ["{{tag}}"],
         "summary": "List {{modelClass}}",
-        "operationId": "list{{module}}{{modelClass}}",
+        "operationId": "list{{opId}}",
         "parameters": [
           {"name": "entries", "in": "query", "schema": {"type": "integer", "default": 15}},
           {"name": "search_key", "in": "query", "schema": {"type": "string"}},
@@ -35,7 +35,7 @@
       "post": {
         "tags": ["{{tag}}"],
         "summary": "Create {{modelClass}}",
-        "operationId": "create{{module}}{{modelClass}}",
+        "operationId": "create{{opId}}",
         "requestBody": {
           "required": true,
           "content": {
@@ -54,7 +54,7 @@
       "get": {
         "tags": ["{{tag}}"],
         "summary": "Show {{modelClass}}",
-        "operationId": "show{{module}}{{modelClass}}",
+        "operationId": "show{{opId}}",
         "parameters": [
           {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
         ],
@@ -66,7 +66,7 @@
       "put": {
         "tags": ["{{tag}}"],
         "summary": "Update {{modelClass}}",
-        "operationId": "update{{module}}{{modelClass}}",
+        "operationId": "update{{opId}}",
         "parameters": [
           {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
         ],
@@ -86,7 +86,7 @@
       "delete": {
         "tags": ["{{tag}}"],
         "summary": "Delete {{modelClass}}",
-        "operationId": "delete{{module}}{{modelClass}}",
+        "operationId": "delete{{opId}}",
         "parameters": [
           {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
         ],

@@ -132,7 +132,9 @@ php artisan module:scaffold Blog Post --auth --audit --permission=posts.manage
 php artisan module:list
 ```
 
-One name is enough: `module:scaffold Course` → module **and** model `Course`.
+One name is enough: `module:scaffold Course` → module **and** model `Course`, URL **`/api/course`** (bukan `/api/course/courses`).
+
+Nested resource tetap: `module:scaffold Blog Post` → `/api/blog/posts`.
 
 ```
 app/Modules/Blog/

@@ -79,10 +79,17 @@ class ModuleScaffold extends Command
         $force = (bool) $this->option('force');
         $protected = $this->resolveProtected();
         $table = Str::snake(Str::pluralStudly($name));
-        $route = Str::kebab(Str::pluralStudly($name));
+        $primary = $this->isPrimaryResource($module, $name);
+        // Primary (module:scaffold Course) → /api/course — not /api/course/courses
+        $routeUri = $primary ? '' : Str::kebab(Str::pluralStudly($name));
         $controller = $name . 'Controller';
+        $modulePrefix = ModulePaths::prefix($module);
+        $openApiPath = $primary ? $modulePrefix : $modulePrefix . '/' . $routeUri;
 
         $this->line('Columns: ' . implode(', ', $schema->names()));
+        if ($primary) {
+            $this->comment("Primary resource → URL /{$modulePrefix} (no duplicated segment)");
+        }
 
         $files = [
             [
@@ -101,7 +108,7 @@ class ModuleScaffold extends Command
                     'namespace' => $moduleNs,
                     'class' => $controller,
                     'modelClass' => $name,
-                    'route' => $route,
+                    'route' => $openApiPath,
                     'module' => $module,
                 ], $cols),
             ],
@@ -161,8 +168,8 @@ class ModuleScaffold extends Command
         }
 
         $this->writeMigration($table, $cols, $force);
-        $this->appendRoute($moduleDir, $moduleNs, $controller, $route, $protected);
-        $this->writeOpenApi($module, $name, $route, $protected, $schema);
+        $this->appendRoute($moduleDir, $moduleNs, $controller, $name, $routeUri, $protected);
+        $this->writeOpenApi($module, $name, $routeUri, $primary, $protected, $schema);
 
         if ($audit && ! config('api-starter.audit.enabled', false)) {
             $this->warn('Model uses Auditable but API_STARTER_AUDIT=false — enable + run api:make-audit.');
@@ -173,9 +180,8 @@ class ModuleScaffold extends Command
         }
 
         $prefix = trim((string) config('api-starter.route_prefix', 'api'), '/');
-        $modulePrefix = ModulePaths::prefix($module);
         $baseUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
-        $resourceUrl = "{$baseUrl}/{$prefix}/{$modulePrefix}/{$route}";
+        $resourceUrl = "{$baseUrl}/{$prefix}/{$openApiPath}";
 
         $this->newLine();
         $this->info("Module scaffold [{$module}/{$name}] done.");
@@ -184,6 +190,11 @@ class ModuleScaffold extends Command
         $this->line('Auth: ' . ($protected ? 'ON' : 'OFF') . ' | Audit: ' . ($audit ? 'ON' : 'OFF'));
 
         return self::SUCCESS;
+    }
+
+    protected function isPrimaryResource(string $module, string $name): bool
+    {
+        return Str::studly($module) === Str::studly($name);
     }
 
     protected function resolveProtected(): bool
@@ -231,7 +242,8 @@ class ModuleScaffold extends Command
         string $moduleDir,
         string $moduleNs,
         string $controller,
-        string $route,
+        string $resourceName,
+        string $routeUri,
         bool $protected,
     ): void {
         $file = $protected
@@ -243,7 +255,7 @@ class ModuleScaffold extends Command
             : $moduleDir . '/Routes/api-protected.php';
 
         if (is_file($other)) {
-            $this->removeRouteLine($other, $route);
+            $this->removeResourceRoutes($other, $resourceName, $routeUri);
         }
 
         $controllerFqcn = $moduleNs . '\\Http\\Controllers\\' . $controller;
@@ -256,51 +268,129 @@ class ModuleScaffold extends Command
             $middlewareParts[] = "api-starter.role:{$role}";
         }
 
-        if ($middlewareParts !== []) {
-            $mw = implode("','", $middlewareParts);
-            $line = "Route::middleware(['{$mw}'])->apiResource('{$route}', \\{$controllerFqcn}::class);";
-        } else {
-            $line = "Route::apiResource('{$route}', \\{$controllerFqcn}::class);";
-        }
+        $block = $this->buildRouteBlock($controllerFqcn, $resourceName, $routeUri, $middlewareParts);
 
-        $contents = is_file($file) ? (string) file_get_contents($file) : "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n";
+        $contents = is_file($file)
+            ? (string) file_get_contents($file)
+            : "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n";
 
         if (! str_contains($contents, 'use Illuminate\\Support\\Facades\\Route;')) {
             $contents = preg_replace('/^<\?php\s*/', "<?php\n\ndeclare(strict_types=1);\n\nuse Illuminate\\Support\\Facades\\Route;\n\n", $contents, 1) ?? $contents;
         }
 
-        $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($route, '/') . '\'.*$/m';
-        if (preg_match($pattern, $contents)) {
-            $contents = preg_replace($pattern, $line, $contents) ?? $contents;
-        } else {
-            $contents = rtrim($contents) . "\n" . $line . "\n";
-        }
+        $contents = $this->stripResourceRoutes($contents, $resourceName, $routeUri);
+        $contents = rtrim($contents) . "\n" . $block . "\n";
 
         file_put_contents($file, $contents);
         $this->info('Updated routes: ' . $file);
     }
 
-    protected function removeRouteLine(string $file, string $route): void
+    /**
+     * @param  list<string>  $middlewareParts
+     */
+    protected function buildRouteBlock(
+        string $controllerFqcn,
+        string $resourceName,
+        string $routeUri,
+        array $middlewareParts,
+    ): string {
+        $begin = "// api-starter:resource:{$resourceName}:begin";
+        $end = "// api-starter:resource:{$resourceName}:end";
+
+        if ($routeUri === '') {
+            $inner = implode("\n", [
+                "    Route::get('/', [\\{$controllerFqcn}::class, 'index']);",
+                "    Route::post('/', [\\{$controllerFqcn}::class, 'store']);",
+                "    Route::get('{id}', [\\{$controllerFqcn}::class, 'show']);",
+                "    Route::put('{id}', [\\{$controllerFqcn}::class, 'update']);",
+                "    Route::patch('{id}', [\\{$controllerFqcn}::class, 'update']);",
+                "    Route::delete('{id}', [\\{$controllerFqcn}::class, 'destroy']);",
+            ]);
+
+            if ($middlewareParts !== []) {
+                $mw = implode("','", $middlewareParts);
+
+                return "{$begin}\nRoute::middleware(['{$mw}'])->group(function () {\n{$inner}\n});\n{$end}";
+            }
+
+            $flat = implode("\n", [
+                "Route::get('/', [\\{$controllerFqcn}::class, 'index']);",
+                "Route::post('/', [\\{$controllerFqcn}::class, 'store']);",
+                "Route::get('{id}', [\\{$controllerFqcn}::class, 'show']);",
+                "Route::put('{id}', [\\{$controllerFqcn}::class, 'update']);",
+                "Route::patch('{id}', [\\{$controllerFqcn}::class, 'update']);",
+                "Route::delete('{id}', [\\{$controllerFqcn}::class, 'destroy']);",
+            ]);
+
+            return "{$begin}\n{$flat}\n{$end}";
+        }
+
+        if ($middlewareParts !== []) {
+            $mw = implode("','", $middlewareParts);
+            $line = "Route::middleware(['{$mw}'])->apiResource('{$routeUri}', \\{$controllerFqcn}::class);";
+        } else {
+            $line = "Route::apiResource('{$routeUri}', \\{$controllerFqcn}::class);";
+        }
+
+        return "{$begin}\n{$line}\n{$end}";
+    }
+
+    protected function removeResourceRoutes(string $file, string $resourceName, string $routeUri): void
     {
+        if (! is_file($file)) {
+            return;
+        }
         $contents = (string) file_get_contents($file);
-        $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($route, '/') . '\'.*\n?/m';
-        $updated = preg_replace($pattern, '', $contents);
-        if (is_string($updated) && $updated !== $contents) {
+        $updated = $this->stripResourceRoutes($contents, $resourceName, $routeUri);
+        if ($updated !== $contents) {
             file_put_contents($file, $updated);
         }
     }
 
-    protected function writeOpenApi(string $module, string $name, string $route, bool $protected, ColumnSchema $schema): void
+    protected function stripResourceRoutes(string $contents, string $resourceName, string $routeUri): string
     {
+        $begin = preg_quote("// api-starter:resource:{$resourceName}:begin", '/');
+        $end = preg_quote("// api-starter:resource:{$resourceName}:end", '/');
+        $updated = preg_replace('/' . $begin . '.*?' . $end . '\n?/s', '', $contents) ?? $contents;
+
+        $plural = Str::kebab(Str::pluralStudly($resourceName));
+        $singular = Str::kebab(Str::studly($resourceName));
+        foreach (array_unique(array_filter([$routeUri, $plural, $singular])) as $legacy) {
+            $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($legacy, '/') . '\'.*\n?/m';
+            $updated = preg_replace($pattern, '', $updated) ?? $updated;
+        }
+
+        return $updated;
+    }
+
+    protected function writeOpenApi(
+        string $module,
+        string $name,
+        string $routeUri,
+        bool $primary,
+        bool $protected,
+        ColumnSchema $schema,
+    ): void {
         if ($this->option('no-openapi') || ! config('api-starter.openapi.enabled', true)) {
             return;
         }
 
         $modulePrefix = ModulePaths::prefix($module);
-        $pathKey = $modulePrefix . '/' . $route;
+        $pathKey = $primary || $routeUri === ''
+            ? $modulePrefix
+            : $modulePrefix . '/' . $routeUri;
         $dir = config('api-starter.paths.openapi', base_path('storage/api-docs'));
-        $path = $dir . '/module-' . $modulePrefix . '-' . $route . '.openapi.json';
-        $tag = $module . '/' . $name;
+        $this->ensureDirectoryExists($dir);
+
+        $path = $primary
+            ? $dir . '/module-' . $modulePrefix . '.openapi.json'
+            : $dir . '/module-' . $modulePrefix . '-' . $routeUri . '.openapi.json';
+
+        $this->purgeStaleModuleOpenApi($dir, $modulePrefix, $primary, $name);
+
+        // One Swagger tag — avoid "Course/Course" looking like two resources
+        $tag = $primary ? $module : ($module . '/' . $name);
+        $opId = $primary ? $module : ($module . $name);
 
         $this->writeStub('module/openapi.stub.json', $path, [
             'title' => (string) config('api-starter.openapi.title', 'API Documentation'),
@@ -309,6 +399,7 @@ class ModuleScaffold extends Command
             'modelClass' => $name,
             'module' => $module,
             'tag' => $tag,
+            'opId' => $opId,
             'route' => $pathKey,
             'searchColumnsExample' => $schema->openApiSearchColumnsExample(),
         ]);
@@ -344,12 +435,39 @@ class ModuleScaffold extends Command
             file_put_contents($path, json_encode($spec, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
         }
 
-        $this->mergeOpenApi($dir, $path, $tag);
+        $this->mergeOpenApi($dir, $path, $tag, $modulePrefix, $pathKey, $primary, $name);
         $this->info("OpenAPI: {$path}");
     }
 
-    protected function mergeOpenApi(string $dir, string $resourcePath, string $tag): void
-    {
+    protected function purgeStaleModuleOpenApi(
+        string $dir,
+        string $modulePrefix,
+        bool $primary,
+        string $name,
+    ): void {
+        $plural = Str::kebab(Str::pluralStudly($name));
+        $singular = Str::kebab(Str::studly($name));
+        $stale = [];
+        if ($primary) {
+            $stale[] = $dir . "/module-{$modulePrefix}-{$plural}.openapi.json";
+            $stale[] = $dir . "/module-{$modulePrefix}-{$singular}.openapi.json";
+        }
+        foreach ($stale as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+    }
+
+    protected function mergeOpenApi(
+        string $dir,
+        string $resourcePath,
+        string $tag,
+        string $modulePrefix,
+        string $pathKey,
+        bool $primary,
+        string $name,
+    ): void {
         $resource = json_decode((string) file_get_contents($resourcePath), true);
         if (! is_array($resource)) {
             return;
@@ -374,11 +492,34 @@ class ModuleScaffold extends Command
             ];
         }
 
+        $legacyTags = array_values(array_unique(array_filter([
+            $tag,
+            $modulePrefix,
+            Str::studly($modulePrefix) . '/' . Str::studly($modulePrefix),
+            $name . '/' . $name,
+        ])));
+
         $index['tags'] = array_values(array_filter(
             $index['tags'] ?? [],
-            fn ($t) => ($t['name'] ?? null) !== $tag
+            static fn ($t): bool => ! in_array($t['name'] ?? null, $legacyTags, true)
         ));
         $index['tags'][] = ['name' => $tag, 'description' => "Module resource {$tag}"];
+
+        $staleBases = [$pathKey];
+        if ($primary) {
+            $staleBases[] = $modulePrefix . '/' . Str::kebab(Str::pluralStudly($name));
+            $staleBases[] = $modulePrefix . '/' . Str::kebab(Str::studly($name));
+        }
+
+        foreach (array_keys($index['paths'] ?? []) as $existingPath) {
+            $trimmed = ltrim((string) $existingPath, '/');
+            foreach ($staleBases as $base) {
+                if ($trimmed === $base || str_starts_with($trimmed, $base . '/')) {
+                    unset($index['paths'][$existingPath]);
+                    break;
+                }
+            }
+        }
 
         foreach ($resource['paths'] ?? [] as $k => $v) {
             $index['paths'][$k] = $v;

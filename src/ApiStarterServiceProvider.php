@@ -8,6 +8,7 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Kindharika\ApiStarter\Audit\AuditManager;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeAuth;
 use Kindharika\ApiStarter\Console\Commands\ApiMakeAudit;
@@ -237,7 +238,7 @@ class ApiStarterServiceProvider extends ServiceProvider
                 }
             }
 
-            // Module protected route prefixes (e.g. blog/posts)
+            // Module protected route prefixes (e.g. blog/posts or primary /course)
             $moduleProtected = [];
             if (config('api-starter.modules.enabled', true)) {
                 foreach (ModulePaths::list() as $module) {
@@ -250,6 +251,20 @@ class ApiStarterServiceProvider extends ServiceProvider
                     if (preg_match_all("/apiResource\\('([^']+)'/", $contents, $matches)) {
                         foreach ($matches[1] as $resource) {
                             $moduleProtected[] = $prefix . '/' . $resource;
+                        }
+                    }
+                    // Primary resource routes at module root: Route::get('/', ...)
+                    if (str_contains($contents, "Route::get('/',")
+                        || str_contains($contents, 'Route::get("/",')
+                        || preg_match("/api-starter:resource:[A-Za-z0-9_]+:begin/", $contents)) {
+                        if (preg_match_all('/api-starter:resource:([A-Za-z0-9_]+):begin.*?Route::get\(\'\\/\'/s', $contents, $rootMatches)) {
+                            foreach ($rootMatches[1] as $resName) {
+                                if (Str::studly($resName) === Str::studly($module)) {
+                                    $moduleProtected[] = $prefix;
+                                }
+                            }
+                        } elseif (str_contains($contents, "Route::get('/',")) {
+                            $moduleProtected[] = $prefix;
                         }
                     }
                 }

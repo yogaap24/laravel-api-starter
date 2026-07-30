@@ -59,9 +59,13 @@ class ModuleRemove extends Command
         File::deleteDirectory($dir);
 
         $openapiDir = config('api-starter.paths.openapi', base_path('storage/api-docs'));
-        foreach (File::glob($openapiDir . "/module-{$prefix}-*.openapi.json") ?: [] as $file) {
+        foreach (array_merge(
+            File::glob($openapiDir . "/module-{$prefix}.openapi.json") ?: [],
+            File::glob($openapiDir . "/module-{$prefix}-*.openapi.json") ?: [],
+        ) as $file) {
             File::delete($file);
         }
+        $this->removeOpenApiPathsContaining($prefix);
         $this->removeOpenApiPathsContaining($prefix . '/');
 
         foreach ($deletedMigrations as $migration) {
@@ -86,6 +90,8 @@ class ModuleRemove extends Command
 
         $dir = ModulePaths::module($module);
         $route = Str::kebab(Str::pluralStudly($name));
+        $primary = Str::studly($module) === Str::studly($name);
+        $routeUri = $primary ? '' : $route;
         $table = Str::snake(Str::pluralStudly($name));
         $deleted = [];
 
@@ -121,11 +127,20 @@ class ModuleRemove extends Command
                 continue;
             }
             $contents = (string) file_get_contents($path);
-            $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($route, '/') . '\'.*\n?/m';
-            $updated = preg_replace($pattern, '', $contents);
+            $begin = preg_quote("// api-starter:resource:{$name}:begin", '/');
+            $end = preg_quote("// api-starter:resource:{$name}:end", '/');
+            $updated = preg_replace('/' . $begin . '.*?' . $end . '\n?/s', '', $contents) ?? $contents;
+            if ($routeUri !== '') {
+                $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($routeUri, '/') . '\'.*\n?/m';
+                $updated = preg_replace($pattern, '', $updated) ?? $updated;
+            }
+            foreach ([$route, Str::kebab(Str::studly($name))] as $legacy) {
+                $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($legacy, '/') . '\'.*\n?/m';
+                $updated = preg_replace($pattern, '', $updated) ?? $updated;
+            }
             if (is_string($updated) && $updated !== $contents) {
                 file_put_contents($path, $updated);
-                $deleted[] = "route:{$routeFile}:{$route}";
+                $deleted[] = "route:{$routeFile}:{$name}";
             }
         }
 
@@ -138,12 +153,28 @@ class ModuleRemove extends Command
         }
 
         $modulePrefix = ModulePaths::prefix($module);
-        $openapi = config('api-starter.paths.openapi', base_path('storage/api-docs'))
-            . "/module-{$modulePrefix}-{$route}.openapi.json";
-        if (is_file($openapi) && File::delete($openapi)) {
-            $deleted[] = $openapi;
+        $openapiDir = config('api-starter.paths.openapi', base_path('storage/api-docs'));
+        $openapiCandidates = $primary
+            ? [
+                $openapiDir . "/module-{$modulePrefix}.openapi.json",
+                $openapiDir . "/module-{$modulePrefix}-{$route}.openapi.json",
+                $openapiDir . '/module-' . $modulePrefix . '-' . Str::kebab(Str::studly($name)) . '.openapi.json',
+            ]
+            : [
+                $openapiDir . "/module-{$modulePrefix}-{$routeUri}.openapi.json",
+            ];
+        foreach ($openapiCandidates as $openapi) {
+            if (is_file($openapi) && File::delete($openapi)) {
+                $deleted[] = $openapi;
+            }
         }
-        $this->removeOpenApiPathsContaining($modulePrefix . '/' . $route);
+
+        $pathNeedle = $primary ? $modulePrefix : ($modulePrefix . '/' . $routeUri);
+        $this->removeOpenApiPathsContaining($pathNeedle);
+        if ($primary) {
+            $this->removeOpenApiPathsContaining($modulePrefix . '/' . $route);
+            $this->removeOpenApiPathsContaining($modulePrefix . '/' . Str::kebab(Str::studly($name)));
+        }
 
         if ($deleted === []) {
             $this->warn("No files found for [{$module}/{$name}].");
