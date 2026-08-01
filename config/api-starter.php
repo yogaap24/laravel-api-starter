@@ -45,11 +45,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Modular API (recommended structure — commands use module:* namespace)
+    |--------------------------------------------------------------------------
+    | Modules are the primary way to organise an API with this package.
+    | Each module lives in app/Modules/{Name} and auto-loads a single
+    | Routes/api.php (auth applied via middleware inside the file).
+    | Legacy Routes/api-protected.php still loads with auth at the loader
+    | if present.
+    |
+    | The flat api:* scaffolds under routes/api-starter* remain fully
+    | supported for existing apps and stay unchanged.
+    |
+    |   php artisan module:make Blog
+    |   php artisan module:scaffold Blog Post --auth
+    |   php artisan module:list
+    |   php artisan module:remove Blog Post
+    */
+    'modules' => [
+        'enabled' => (bool) env('API_STARTER_MODULES', true),
+        'path' => app_path('Modules'),
+        'namespace' => 'Modules',
+        // Migrations always use database/migrations (standard Laravel path).
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Optional Sanctum Auth (opt-in)
     |--------------------------------------------------------------------------
     | Default routes in routes/api-starter/ are PUBLIC.
     | Only routes in routes/api-starter-protected/ use auth:sanctum.
     |
+    |   php artisan module:scaffold Blog Post --auth  # protected → app/Modules/Blog/Routes/api.php
     |   php artisan api:scaffold Post              # public → api-starter/
     |   php artisan api:scaffold Post --auth       # protected → api-starter-protected/
     |   php artisan api:make-auth                  # login/register/forgot/reset
@@ -119,27 +145,6 @@ return [
          */
         'docs_ui' => env('API_STARTER_DOCS_UI', '/api/docs'),
         'docs_json' => env('API_STARTER_DOCS_JSON', '/api/docs/openapi.json'),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Modular API (NEW — opt-in structure, commands use module:* namespace)
-    |--------------------------------------------------------------------------
-    | Existing api:* scaffolds under routes/api-starter* stay unchanged.
-    | Modules live in app/Modules/{Name} and auto-load Routes/api.php
-    | (auth via middleware inside the file). Legacy Routes/api-protected.php
-    | still loads with auth at the loader if present.
-    |
-    |   php artisan module:make Blog
-    |   php artisan module:scaffold Blog Post --auth
-    |   php artisan module:list
-    |   php artisan module:remove Blog Post
-    */
-    'modules' => [
-        'enabled' => (bool) env('API_STARTER_MODULES', true),
-        'path' => app_path('Modules'),
-        'namespace' => 'Modules',
-        // Migrations always use database/migrations (standard Laravel path).
     ],
 
     /*

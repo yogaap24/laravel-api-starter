@@ -3,16 +3,16 @@
 Pure API package for Laravel **11 / 12 / 13** (PHP **^8.3**).
 
 Scaffold CRUD + OpenAPI/Swagger, service layer, UUID models, datatable macro.
-**2.2** adds column-driven generation, modules, RBAC adapter, SSO. Existing `api:*` flow stays.
+**2.2** adds column-driven generation, modules, RBAC adapter, SSO. Modules (`module:*`) are the **recommended structure** for new APIs; the flat `api:*` surface remains fully supported and unchanged.
 
 ---
 
 ## Table of contents
 
 1. [Install](#install)
-2. [Quick start (`api:scaffold`)](#quick-start-apiscaffold)
+2. [Quick start: Modules (`module:*`)](#quick-start-modules-module)
 3. [Columns (`--columns`)](#columns---columns)
-4. [Modules (`module:*`)](#modules-module)
+4. [Flat API (`api:*`)](#flat-api-api)
 5. [Auth / Sanctum](#auth--sanctum)
 6. [RBAC](#rbac)
 7. [SSO](#sso)
@@ -40,36 +40,61 @@ php artisan vendor:publish --tag=api-starter-stubs
 
 ---
 
-## Quick start (`api:scaffold`)
+## Quick start: Modules (`module:*`)
+
+Isolated APIs under `app/Modules/{Name}`. This is the recommended default. The flat `api:scaffold` flow stays fully supported as an alternative — see [Flat API (`api:*`)](#flat-api-api).
 
 ```bash
-php artisan api:scaffold Post
-php artisan api:scaffold Post --migrate
+php artisan module:make Blog
+php artisan module:scaffold Course
+php artisan module:scaffold Blog Post --columns='title:string,body:text?,published_at:timestamp?'
+php artisan module:scaffold Blog Post --auth --audit --permission=posts.manage
+php artisan module:list
 ```
 
-| Artifact   | Path                                                      |
-| ---------- | --------------------------------------------------------- |
-| Model      | `app/Models/Post.php`                                     |
-| Controller | `app/Http/Controllers/Api/PostController.php`             |
-| Requests   | `app/Http/Requests/Post/…`                                |
-| Service    | `app/Services/Post/…`                                     |
-| Resource   | `app/Http/Resources/PostResource.php`                     |
-| Migration  | `database/migrations/*_create_posts_table.php`            |
-| Route      | `routes/api-starter/posts.php`                            |
-| OpenAPI    | `storage/api-docs/openapi.json` only (single Swagger doc) |
+One name is enough: `module:scaffold Course` → module **and** model `Course`, URL **`/api/course`** (not `/api/course/courses`).
+
+Nested resources still work: `module:scaffold Blog Post` → `/api/blog/posts`.
 
 ```
-GET/POST       /api/posts
-GET/PUT/DELETE /api/posts/{id}
+app/Modules/Blog/
+  Models/…  Http/…  Services/…  Routes/api.php
+database/migrations/…   # standard path (not inside module)
 ```
 
-Single generators: `api:make-model|controller|service|request|migration|resource|route|openapi`.
+### Module routes = **one file** (`Routes/api.php`)
+
+| When          | How                                                                                  | Result                                              |
+| ------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| Public CRUD   | `module:scaffold Blog Post`                                                          | `Route::apiResource(...)` without auth              |
+| Login needed  | `module:scaffold Blog Post --auth` **or** `API_STARTER_AUTH=true`                     | `auth:sanctum` middleware **inside** `api.php`      |
+| + permission  | `--permission=posts.manage`                                                          | Adds `api-starter.permission:…` on the same route   |
+
+Example output of `--auth`:
+
+```php
+// Routes/api.php
+Route::middleware(['auth:sanctum'])->apiResource('posts', \Modules\Blog\Http\Controllers\PostController::class);
+```
+
+**Edit one file only.** Mix public + protected inside `api.php` — anything that needs a token goes in `Route::middleware(['auth:sanctum'])->group(...)`.
+
+Legacy `Routes/api-protected.php` (older modules) is still loaded, with auth applied outside the file. New modules do **not** create it. You may move its contents into `api.php` and then delete `api-protected.php`.
+
+```
+GET/POST /api/blog/posts
+```
+
+| Command           | Purpose                                                        |
+| ----------------- | -------------------------------------------------------------- |
+| `module:scaffold` | **Recommended default** — CRUD inside a module (`app/Modules`) |
+| `api:scaffold`    | Flat alternative — CRUD directly under `app/`                  |
 
 ---
 
 ## Columns (`--columns`)
 
-Generate fillable, migration, validation, resource, **and Swagger schemas** from one spec.
+Generate fillable, migration, validation, resource, **and Swagger schemas** from one spec. Works with both `module:scaffold` and `api:scaffold`.
 
 ### Shell tip (important)
 
@@ -120,68 +145,45 @@ Without `--columns`: interactive prompt, or default `name` + `description`.
 
 ---
 
-## Modules (`module:*`)
+## Flat API (`api:*`)
 
-Isolated APIs under `app/Modules/{Name}`. Does **not** replace `api:scaffold`.
+Flat (non-module) CRUD generated straight into `app/`. Fully supported — use it for existing apps already on this layout, or when a module is more structure than you need. For new APIs prefer [`module:scaffold`](#quick-start-modules-module).
 
 ```bash
-php artisan module:make Blog
-php artisan module:scaffold Course
-php artisan module:scaffold Blog Post --columns='title:string,body:text?,published_at:timestamp?'
-php artisan module:scaffold Blog Post --auth --audit --permission=posts.manage
-php artisan module:list
+php artisan api:scaffold Post
+php artisan api:scaffold Post --migrate
 ```
 
-One name is enough: `module:scaffold Course` → module **and** model `Course`, URL **`/api/course`** (bukan `/api/course/courses`).
-
-Nested resource tetap: `module:scaffold Blog Post` → `/api/blog/posts`.
-
-```
-app/Modules/Blog/
-  Models/…  Http/…  Services/…  Routes/api.php
-database/migrations/…   # standard path (not inside module)
-```
-
-### Module routes = **satu file** (`Routes/api.php`)
-
-| Kapan | Cara | Hasil |
-| ----- | ---- | ----- |
-| Public CRUD | `module:scaffold Blog Post` | `Route::apiResource(...)` tanpa auth |
-| Butuh login | `module:scaffold Blog Post --auth` **atau** `API_STARTER_AUTH=true` | Middleware `auth:sanctum` **di dalam** `api.php` |
-| + permission | `--permission=posts.manage` | Tambah `api-starter.permission:…` di route yang sama |
-
-Contoh hasil `--auth`:
-
-```php
-// Routes/api.php
-Route::middleware(['auth:sanctum'])->apiResource('posts', \Modules\Blog\Http\Controllers\PostController::class);
-```
-
-**Edit 1 file saja.** Campur public + protected di `api.php` — yang butuh token pakai `Route::middleware(['auth:sanctum'])->group(...)`.
-
-Legacy `Routes/api-protected.php` (modul lama) masih di-load dengan auth di luar file. Modul baru **tidak** buat file itu. Boleh pindahkan isinya ke `api.php` lalu hapus `api-protected.php`.
+| Artifact   | Path                                                      |
+| ---------- | --------------------------------------------------------- |
+| Model      | `app/Models/Post.php`                                     |
+| Controller | `app/Http/Controllers/Api/PostController.php`             |
+| Requests   | `app/Http/Requests/Post/…`                                |
+| Service    | `app/Services/Post/…`                                     |
+| Resource   | `app/Http/Resources/PostResource.php`                     |
+| Migration  | `database/migrations/*_create_posts_table.php`            |
+| Route      | `routes/api-starter/posts.php`                            |
+| OpenAPI    | `storage/api-docs/openapi.json` only (single Swagger doc) |
 
 ```
-GET/POST /api/blog/posts
+GET/POST       /api/posts
+GET/PUT/DELETE /api/posts/{id}
 ```
 
-| Command           | Purpose            |
-| ----------------- | ------------------ |
-| `api:scaffold`    | Flat CRUD          |
-| `module:scaffold` | CRUD inside module |
+Single generators: `api:make-model|controller|service|request|migration|resource|route|openapi`.
 
 ---
 
 ## Auth / Sanctum
 
-### Flat `api:*` (dua folder — beda loader)
+### Flat `api:*` (two folders — different loaders)
 
-| Folder                          | Auth           | Kapan dipakai |
-| ------------------------------- | -------------- | ------------- |
-| `routes/api-starter/`           | Public         | Default `api:scaffold` |
-| `routes/api-starter-protected/` | `auth:sanctum` | `--auth` atau `API_STARTER_AUTH=true` (scaffold baru saja) |
+| Folder                          | Auth           | When used                                                    |
+| ------------------------------- | -------------- | ------------------------------------------------------------ |
+| `routes/api-starter/`           | Public         | Default `api:scaffold`                                       |
+| `routes/api-starter-protected/` | `auth:sanctum` | `--auth` or `API_STARTER_AUTH=true` (new scaffolds only)     |
 
-Folder flat tetap dua karena loader tempel middleware di **luar** file. Module sudah satu file + middleware di **dalam**.
+The flat surface keeps two folders because the loader attaches middleware **outside** the file. Modules already use one file with middleware **inside**.
 
 ### Setup Sanctum
 
@@ -203,7 +205,8 @@ php artisan api:make-auth
 
 Swagger **Authorize**: paste token **only** (no `Bearer ` prefix).
 
-**Security:** route tanpa `auth:sanctum` = siapa saja bisa hit. Jangan taruh data sensitif di public route.
+**Security:** a route without `auth:sanctum` can be hit by anyone. Never put sensitive data on a public route.
+
 ---
 
 ## RBAC
@@ -268,36 +271,41 @@ Drivers: `database` | `spatie` | `null`. Trait: `Kindharika\ApiStarter\Audit\Aud
 
 ## Swagger
 
-Satu file: `storage/api-docs/openapi.json`
+One file: `storage/api-docs/openapi.json`
 
 - UI: `{APP_URL}/api/docs`
 - JSON: `{APP_URL}/api/docs/openapi.json`
 
-Scaffold / auth / SSO / module merge ke file itu — **tidak** buat fragment `*.openapi.json`.
+Scaffold / auth / SSO / module output all merge into that one file — no `*.openapi.json` fragments are written.
 
-Schemas ikut `--columns`. Controllers juga dapat `@OA\*` untuk `darkaonline/l5-swagger`.
+Schemas follow `--columns`. Success responses document the full envelope — `code`, `success`, `message`, `data`, plus `meta` on paginated lists — for module and flat resources alike, matching `Kindharika\ApiStarter\Base\ResponseService`.
+
+Per-action `@OA\Get` / `@OA\Post` / `@OA\Put` / `@OA\Delete` annotations for `darkaonline/l5-swagger` are **flat-surface only** (`api:scaffold` controllers). Module controllers carry `@OA\Schema` component blocks but no path-level annotations. Either way the package never parses annotations: `openapi.json` is built purely by merging JSON fragments, so the annotations matter only if the host app installs swagger-php itself.
 
 ```bash
 php artisan api:make-openapi Post --columns='title:string,body:text?'
 php artisan api:make-openapi CobaAuth --auth
 
-# Leftover schema/properties setelah remove?
+# Leftover schema/properties after a remove?
 php artisan api:openapi-prune --prefix=course --force
 php artisan api:openapi-prune --schema=Course --force
 php artisan api:openapi-prune --orphans --force
 
-# Module sudah hilang dari disk — bersihkan OpenAPI saja:
+# Module already gone from disk — clean OpenAPI only:
 php artisan module:remove Course --openapi-only --force
 ```
 
-Hard refresh Swagger UI setelah prune (cache browser).
+Hard refresh Swagger UI after a prune (browser cache).
 
 ---
 
 ## Remove
 
+`api:remove` removes a **flat** scaffolded resource — files under `app/`, routes in `routes/api-starter*`, and its OpenAPI entries. It is not `module:remove` and never touches `app/Modules`.
+`module:remove` removes a module resource, or an entire module.
+
 ```bash
-# Flat resource
+# Flat resource (api:scaffold output)
 php artisan api:remove Post
 php artisan api:remove Post --keep-migration
 
@@ -322,8 +330,8 @@ Publish `config/api-starter.php`. Highlights:
 | Key                  | Notes                                     |
 | -------------------- | ----------------------------------------- |
 | `uuid_version`       | `7` (default), `4`, or `1`                |
-| `auth.enabled`       | New scaffolds default to protected routes |
 | `modules.path`       | `app/Modules`                             |
+| `auth.enabled`       | New scaffolds default to protected routes |
 | `rbac.driver`        | `spatie` \| `gate` \| `custom` \| `null`  |
 | `openapi.enabled`    | Swagger UI + JSON                         |
 | `datatable.per_page` | Default page size                         |

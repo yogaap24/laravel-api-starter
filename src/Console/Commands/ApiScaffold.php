@@ -23,7 +23,7 @@ class ApiScaffold extends Command
                             {--no-route : Skip route generation}
                             {--no-openapi : Skip OpenAPI/Swagger generation}';
 
-    protected $description = 'Scaffold a ready-to-use API CRUD resource (files, routes, OpenAPI)';
+    protected $description = 'Scaffold a flat (non-module) API CRUD resource; see module:scaffold for module-based';
 
     public function handle(): int
     {

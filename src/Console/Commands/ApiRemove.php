@@ -20,7 +20,7 @@ class ApiRemove extends Command
                             {--force : Do not ask for confirmation}
                             {--keep-migration : Keep migration files}';
 
-    protected $description = 'Remove a scaffolded API module cleanly (files, routes, OpenAPI)';
+    protected $description = 'Remove a scaffolded API resource cleanly (files, routes, OpenAPI — not module:remove)';
 
     public function handle(): int
     {

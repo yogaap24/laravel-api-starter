@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.8] - 2026-08-01
+
+### Fixed
+- **Module Swagger showed a shape the API never returns**: `stubs/module/openapi.stub.json` 200/201 responses now document the real `ResponseService` envelope (`code` / `success` / `message` / `data`, plus `meta` on the paginated list) instead of a bare payload — same shape the flat `stubs/openapi.stub.json` already used. Changes generated OpenAPI for newly scaffolded module resources
+- Module list parameters get their `sort_column` / `sort_type` defaults back (`created_at` / `desc`)
+- **Route marker drift**: `// api-starter:resource:{Name}:begin/end` was hand-written in four places and the `module:remove` copy had already diverged from the `module:scaffold` one — route cleanup could silently miss blocks. All four now go through one owner
+- `InteractsWithStubs::renderStub()` resolved its stub via `getStub()`, whose name collides with the abstract zero-arg `Illuminate\Console\GeneratorCommand::getStub()`. In a `GeneratorCommand` subclass the class override wins and PHP silently drops the extra argument, so `renderStub()` / `writeStub()` received a filesystem path instead of the stub body. Both now resolve through `getStubPath()`. No shipped command hit this — the two affected commands had worked around it — so no generated output changes
+
+### Added
+- `Modules\ResourceRouteMarker` — sole owner of the resource route marker format (write / strip / discover); `ModuleScaffold::buildRouteBlock`, `ModuleScaffold::stripResourceRoutes`, `ModuleRemove::removeResource`, and `ApiStarterServiceProvider::discoverProtectedModulePaths` all delegate to it
+
+### Changed
+- `module:*` commands register before `api:*` in `php artisan list`; the missing-spec 404 now names `php artisan module:scaffold {Module}` first
+- `api:scaffold` / `api:remove` descriptions identify the **flat (non-module)** surface — `api:remove` used to describe itself as removing a "module", colliding with `module:remove`
+- `config/api-starter.php`: `modules` block moved above the Sanctum auth block, heading no longer labels it "NEW / opt-in" — **no key, default, or env var renamed** (`API_STARTER_MODULES` and friends unchanged; nothing to republish)
+- `ModuleScaffold` stops passing two unused replacements (`route`, `module`) into `stubs/module/controller.stub`
+- `stubs/module/resource.stub` docblock interpolates the class name instead of a fixed `Module API Resource.`
+- `ApiStarterServiceProvider::registerOpenApiRoutes` is now route registration only — the ~105-line inline JSON closure and the Swagger UI closure moved to `serveOpenApiJson()`, `serveSwaggerUi()`, `protectedFlatRouteSegments()`, and `protectedModulePaths()`. Pure extraction: no served bytes change
+- `ApiMakeModel` / `ApiMakeResource` build their stub through `InteractsWithStubs::renderStub()` instead of a hand-rolled `{{token}}` loop
+
 ## [2.2.7] - 2026-07-30
 
 ### Fixed
@@ -158,6 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release: BaseModel, BaseService, BaseApiController, datatable macro, scaffold commands, FCM helpers
 
+[2.2.8]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.7...2.2.8
 [2.2.4]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.3...2.2.4
 [2.2.3]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.2...2.2.3
 [2.2.2]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.1...2.2.2
