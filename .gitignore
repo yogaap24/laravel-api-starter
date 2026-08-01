@@ -1,6 +1,10 @@
 /vendor/
 /.idea/
 /.vscode/
+.claude/
 .phpunit.result.cache
 composer.lock
 .php-cs-fixer.cache
+CLAUDE.md
+ARCHITECTURE.md
+MEMORY.md
