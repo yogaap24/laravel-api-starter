@@ -6,9 +6,6 @@ namespace {{namespace}}\Http\Requests\{{modelClass}};
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Validates update {{modelClass}} payload (partial allowed).
- */
 class {{class}} extends FormRequest
 {
     public function authorize(): bool

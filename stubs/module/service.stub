@@ -12,9 +12,6 @@ use Kindharika\ApiStarter\Base\BaseService;
 use Kindharika\ApiStarter\Base\BaseServiceInterface;
 use Kindharika\ApiStarter\Support\DatatableFilter;
 
-/**
- * Module service for {{modelClass}} CRUD + datatable.
- */
 class {{class}} extends BaseService implements BaseServiceInterface
 {
     public function __construct({{modelClass}} $model)

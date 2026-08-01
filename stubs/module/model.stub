@@ -9,8 +9,6 @@ use Kindharika\ApiStarter\Base\BaseModel;
 {{auditableImport}}
 
 /**
- * Module model {{class}} (UUID PK + SoftDeletes).
- *
 {{properties}}
  */
 class {{class}} extends BaseModel

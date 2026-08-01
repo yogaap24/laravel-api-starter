@@ -11,11 +11,6 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Kindharika\ApiStarter\Base\BaseService;
 
-/**
- * Sanctum password auth + password reset.
- *
- * Token payloads: array{user: Authenticatable, token: string, token_type: 'Bearer'}
- */
 class AuthService extends BaseService
 {
     public function __construct()
@@ -70,9 +65,6 @@ class AuthService extends BaseService
         ];
     }
 
-    /**
-     * Delete the current Sanctum personal access token.
-     */
     public function logout(Authenticatable $user): void
     {
         if (method_exists($user, 'currentAccessToken')) {
@@ -80,9 +72,6 @@ class AuthService extends BaseService
         }
     }
 
-    /**
-     * @return Authenticatable
-     */
     public function me(Authenticatable $user): Authenticatable
     {
         return $user;

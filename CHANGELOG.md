@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.9] - 2026-08-02
+
+### Removed
+- **`@OA` annotations out of generated controllers**: `stubs/controller.api.stub` drops its three `@OA\Schema` component blocks and all five per-action `@OA\Get` / `@OA\Post` / `@OA\Put` / `@OA\Delete` blocks (150 lines down to 68); `stubs/module/controller.stub` drops its three `@OA\Schema` blocks (96 down to 67). `openapi.json` is unaffected — it is built by merging JSON fragments and never parsed annotations. Host apps that relied on `darkaonline/l5-swagger` scanning generated controllers must publish the stubs (`php artisan vendor:publish --tag=api-starter-stubs`) and re-add the annotations themselves
+- **Narration docblocks across every stub**: class headers that only restated the class name ("Business logic for {{modelClass}} CRUD + datatable", "Validates store {{modelClass}} payload", "API Resource for {{class}}", "Contract for {{modelClass}} service"), method docblocks that only restated a declared signature (`@param  string  $id  UUID primary key`, `@return JsonResponse  HTTP 200 or 401`, a bare `@return Authenticatable` over a method already typed `: Authenticatable`), and the two commentary lines above the routes in `stubs/sso/route.public.stub`
+
+### Changed
+- Generated code keeps only the comments types cannot express: generic collection and array-shape annotations (`@return LengthAwarePaginator<int, {{modelClass}}>`, `@return array<string, list<string>>`, `@param array{...}`), the `@phpstan-type` aliases in `stubs/sso/service.stub`, `@property` / `@property-read` / `@method` blocks, `@mixin` on resources, inline `/** @var */` narrowing, and the two security invariants in `stubs/sso/service.stub` (Google audience check, id_token server-side verify)
+- The generators still supply the `openApiResourceProperties`, `openApiRequestProperties`, `openApiStoreRequired` and `providersList` replacements even though no shipped stub consumes them any more — host apps with published stubs keep working, and custom stubs can still use them. `ColumnSchema::openApiAnnotationProperties()` and `ColumnSchema::openApiAnnotationRequestProperties()` stay public for the same reason
+- `// api-starter:resource:{Name}:begin/end` markers in generated module route files are untouched — they are a machine contract read at runtime by `ApiStarterServiceProvider`, not commentary
+
 ## [2.2.8] - 2026-08-01
 
 ### Fixed
@@ -178,6 +189,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release: BaseModel, BaseService, BaseApiController, datatable macro, scaffold commands, FCM helpers
 
+[2.2.9]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.8...2.2.9
 [2.2.8]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.7...2.2.8
 [2.2.4]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.3...2.2.4
 [2.2.3]: https://github.com/yogaap24/laravel-api-starter/compare/2.2.2...2.2.3

@@ -8,8 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * API Resource for {{class}}.
- *
  * @mixin \Illuminate\Database\Eloquent\Model
  */
 class {{class}} extends JsonResource

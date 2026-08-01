@@ -280,7 +280,7 @@ Scaffold / auth / SSO / module output all merge into that one file — no `*.ope
 
 Schemas follow `--columns`. Success responses document the full envelope — `code`, `success`, `message`, `data`, plus `meta` on paginated lists — for module and flat resources alike, matching `Kindharika\ApiStarter\Base\ResponseService`.
 
-Per-action `@OA\Get` / `@OA\Post` / `@OA\Put` / `@OA\Delete` annotations for `darkaonline/l5-swagger` are **flat-surface only** (`api:scaffold` controllers). Module controllers carry `@OA\Schema` component blocks but no path-level annotations. Either way the package never parses annotations: `openapi.json` is built purely by merging JSON fragments, so the annotations matter only if the host app installs swagger-php itself.
+Generated controllers carry no `@OA` annotations. `openapi.json` is the single source of truth and is built purely by merging JSON fragments — the package never parses annotations. Host apps that want `darkaonline/l5-swagger` to scan their controllers can publish the stubs (`php artisan vendor:publish --tag=api-starter-stubs`) and add annotations there; the `{{openApiResourceProperties}}`, `{{openApiRequestProperties}}` and `{{openApiStoreRequired}}` replacements are still supplied to custom stubs.
 
 ```bash
 php artisan api:make-openapi Post --columns='title:string,body:text?'

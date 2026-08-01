@@ -6,9 +6,6 @@ namespace {{namespace}}\Services\{{modelClass}};
 
 use Kindharika\ApiStarter\Base\BaseServiceInterface;
 
-/**
- * Contract for {{modelClass}} service (see BaseServiceInterface).
- */
 interface {{class}} extends BaseServiceInterface
 {
     //

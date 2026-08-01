@@ -15,26 +15,6 @@ use Illuminate\Http\Request;
 use Kindharika\ApiStarter\Base\BaseApiController;
 use Kindharika\ApiStarter\Support\DatatableFilter;
 
-/**
- * Module CRUD controller for {{modelClass}}.
- *
- * @OA\Schema(
- *     schema="{{modelClass}}",
- *     type="object",
-{{openApiResourceProperties}}
- * )
- * @OA\Schema(
- *     schema="{{modelClass}}Store",
- *     type="object",
- *     {{openApiStoreRequired}}
-{{openApiRequestProperties}}
- * )
- * @OA\Schema(
- *     schema="{{modelClass}}Update",
- *     type="object",
-{{openApiRequestProperties}}
- * )
- */
 class {{class}} extends BaseApiController
 {
     public function __construct(
@@ -61,9 +41,6 @@ class {{class}} extends BaseApiController
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 201);
     }
 
-    /**
-     * @param  string  $id  UUID primary key
-     */
     public function show(string $id): JsonResponse
     {
         /** @var {{modelClass}} $data */
@@ -72,9 +49,6 @@ class {{class}} extends BaseApiController
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 
-    /**
-     * @param  string  $id  UUID primary key
-     */
     public function update(Update{{modelClass}}Request $request, string $id): JsonResponse
     {
         /** @var {{modelClass}} $data */
@@ -83,9 +57,6 @@ class {{class}} extends BaseApiController
         return $this->sendSuccess((new {{modelClass}}Resource($data))->resolve(), null, 200);
     }
 
-    /**
-     * @param  string  $id  UUID primary key
-     */
     public function destroy(string $id): JsonResponse
     {
         /** @var {{modelClass}} $data */

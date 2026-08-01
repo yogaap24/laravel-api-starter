@@ -8,8 +8,6 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 /**
- * SSO token exchange body. Provide access_token and/or id_token (Google).
- *
  * @property-read string|null $access_token
  * @property-read string|null $id_token
  *
