@@ -22,11 +22,31 @@
         "summary": "List {{modelClass}}",
         "operationId": "list{{opId}}",
         "parameters": [
-          {"name": "entries", "in": "query", "schema": {"type": "integer", "default": 15}},
-          {"name": "search_key", "in": "query", "schema": {"type": "string"}},
-          {"name": "search_columns", "in": "query", "schema": {"type": "string", "example": "{{searchColumnsExample}}"}},
-          {"name": "sort_column", "in": "query", "schema": {"type": "string"}},
-          {"name": "sort_type", "in": "query", "schema": {"type": "string", "enum": ["asc", "desc"]}}
+          {
+            "name": "entries",
+            "in": "query",
+            "schema": { "type": "integer", "default": 15 }
+          },
+          {
+            "name": "search_key",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "search_columns",
+            "in": "query",
+            "schema": { "type": "string", "example": "{{searchColumnsExample}}" }
+          },
+          {
+            "name": "sort_column",
+            "in": "query",
+            "schema": { "type": "string", "default": "created_at" }
+          },
+          {
+            "name": "sort_type",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "desc" }
+          }
         ],
         "responses": {
           "200": {
@@ -36,10 +56,14 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "code": { "type": "integer", "example": 200 },
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string" },
                     "data": {
                       "type": "array",
-                      "items": {"$ref": "#/components/schemas/{{modelClass}}"}
-                    }
+                      "items": { "$ref": "#/components/schemas/{{modelClass}}" }
+                    },
+                    "meta": { "type": "object" }
                   }
                 }
               }
@@ -55,13 +79,28 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {"$ref": "#/components/schemas/{{modelClass}}Store"}
+              "schema": { "$ref": "#/components/schemas/{{modelClass}}Store" }
             }
           }
         },
         "responses": {
-          "201": {"description": "Created"},
-          "422": {"description": "Validation error"}
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer", "example": 201 },
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/{{modelClass}}" }
+                  }
+                }
+              }
+            }
+          },
+          "422": { "description": "Validation error" }
         }
       }
     },
@@ -71,18 +110,31 @@
         "summary": "Show {{modelClass}}",
         "operationId": "show{{opId}}",
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
         ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {"$ref": "#/components/schemas/{{modelClass}}"}
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "integer" },
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/{{modelClass}}" }
+                  }
+                }
               }
             }
           },
-          "404": {"description": "Not found"}
+          "404": { "description": "Not found" }
         }
       },
       "put": {
@@ -90,19 +142,24 @@
         "summary": "Update {{modelClass}}",
         "operationId": "update{{opId}}",
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {"$ref": "#/components/schemas/{{modelClass}}Update"}
+              "schema": { "$ref": "#/components/schemas/{{modelClass}}Update" }
             }
           }
         },
         "responses": {
-          "200": {"description": "Updated"},
-          "404": {"description": "Not found"}
+          "200": { "description": "Updated" },
+          "404": { "description": "Not found" }
         }
       },
       "delete": {
@@ -110,11 +167,16 @@
         "summary": "Delete {{modelClass}}",
         "operationId": "delete{{opId}}",
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
         ],
         "responses": {
-          "200": {"description": "Deleted"},
-          "404": {"description": "Not found"}
+          "200": { "description": "Deleted" },
+          "404": { "description": "Not found" }
         }
       }
     }
@@ -124,26 +186,26 @@
       "{{modelClass}}": {
         "type": "object",
         "properties": {
-          "id": {"type": "string", "format": "uuid"},
-          "name": {"type": "string"},
-          "description": {"type": "string", "nullable": true},
-          "created_at": {"type": "string", "format": "date-time"},
-          "updated_at": {"type": "string", "format": "date-time"}
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
         }
       },
       "{{modelClass}}Store": {
         "type": "object",
         "required": ["name"],
         "properties": {
-          "name": {"type": "string", "maxLength": 255},
-          "description": {"type": "string", "nullable": true}
+          "name": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "nullable": true }
         }
       },
       "{{modelClass}}Update": {
         "type": "object",
         "properties": {
-          "name": {"type": "string", "maxLength": 255},
-          "description": {"type": "string", "nullable": true}
+          "name": { "type": "string", "maxLength": 255 },
+          "description": { "type": "string", "nullable": true }
         }
       }
     }
