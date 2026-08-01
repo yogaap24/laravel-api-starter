@@ -10,6 +10,7 @@ use Kindharika\ApiStarter\Console\BuildsColumnReplacements;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
 use Kindharika\ApiStarter\Console\ManagesOpenApiDocument;
 use Kindharika\ApiStarter\Modules\ModulePaths;
+use Kindharika\ApiStarter\Modules\ResourceRouteMarker;
 use Kindharika\ApiStarter\Support\AuthConfig;
 use Kindharika\ApiStarter\Support\ColumnSchema;
 
@@ -110,8 +111,6 @@ class ModuleScaffold extends Command
                     'namespace' => $moduleNs,
                     'class' => $controller,
                     'modelClass' => $name,
-                    'route' => $openApiPath,
-                    'module' => $module,
                 ], $cols),
             ],
             [
@@ -297,9 +296,6 @@ class ModuleScaffold extends Command
         string $routeUri,
         array $middlewareParts,
     ): string {
-        $begin = "// api-starter:resource:{$resourceName}:begin";
-        $end = "// api-starter:resource:{$resourceName}:end";
-
         if ($routeUri === '') {
             $inner = implode("\n", [
                 "    Route::get('/', [\\{$controllerFqcn}::class, 'index']);",
@@ -313,7 +309,10 @@ class ModuleScaffold extends Command
             if ($middlewareParts !== []) {
                 $mw = implode("','", $middlewareParts);
 
-                return "{$begin}\nRoute::middleware(['{$mw}'])->group(function () {\n{$inner}\n});\n{$end}";
+                return ResourceRouteMarker::wrap(
+                    $resourceName,
+                    "Route::middleware(['{$mw}'])->group(function () {\n{$inner}\n});"
+                );
             }
 
             $flat = implode("\n", [
@@ -325,7 +324,7 @@ class ModuleScaffold extends Command
                 "Route::delete('{id}', [\\{$controllerFqcn}::class, 'destroy']);",
             ]);
 
-            return "{$begin}\n{$flat}\n{$end}";
+            return ResourceRouteMarker::wrap($resourceName, $flat);
         }
 
         if ($middlewareParts !== []) {
@@ -335,7 +334,7 @@ class ModuleScaffold extends Command
             $line = "Route::apiResource('{$routeUri}', \\{$controllerFqcn}::class);";
         }
 
-        return "{$begin}\n{$line}\n{$end}";
+        return ResourceRouteMarker::wrap($resourceName, $line);
     }
 
     protected function removeResourceRoutes(string $file, string $resourceName, string $routeUri): void
@@ -352,18 +351,11 @@ class ModuleScaffold extends Command
 
     protected function stripResourceRoutes(string $contents, string $resourceName, string $routeUri): string
     {
-        $begin = preg_quote("// api-starter:resource:{$resourceName}:begin", '/');
-        $end = preg_quote("// api-starter:resource:{$resourceName}:end", '/');
-        $updated = preg_replace('/' . $begin . '.*?' . $end . '\n?/s', '', $contents) ?? $contents;
-
-        $plural = Str::kebab(Str::pluralStudly($resourceName));
-        $singular = Str::kebab(Str::studly($resourceName));
-        foreach (array_unique(array_filter([$routeUri, $plural, $singular])) as $legacy) {
-            $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($legacy, '/') . '\'.*\n?/m';
-            $updated = preg_replace($pattern, '', $updated) ?? $updated;
-        }
-
-        return $updated;
+        return ResourceRouteMarker::strip($contents, $resourceName, [
+            $routeUri,
+            Str::kebab(Str::pluralStudly($resourceName)),
+            Str::kebab(Str::studly($resourceName)),
+        ]);
     }
 
     protected function writeOpenApi(

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Kindharika\ApiStarter;
 
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +35,7 @@ use Kindharika\ApiStarter\Http\Middleware\EnsureRole;
 use Kindharika\ApiStarter\Macros\DatatableMacro;
 use Kindharika\ApiStarter\Modules\ModuleManifest;
 use Kindharika\ApiStarter\Modules\ModulePaths;
+use Kindharika\ApiStarter\Modules\ResourceRouteMarker;
 use Kindharika\ApiStarter\Rbac\RbacManager;
 use Kindharika\ApiStarter\Support\AuthConfig;
 
@@ -53,7 +56,12 @@ class ApiStarterServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
-                // Existing api:* — unchanged
+                // module:* — the primary surface. Start here.
+                ModuleMake::class,
+                ModuleScaffold::class,
+                ModuleRemove::class,
+                ModuleList::class,
+                // api:* — the older flat surface. Still fully supported.
                 ApiScaffold::class,
                 ApiRemove::class,
                 ApiMakeAuth::class,
@@ -68,11 +76,6 @@ class ApiStarterServiceProvider extends ServiceProvider
                 ApiMakeRoute::class,
                 ApiMakeService::class,
                 ApiOpenApiPrune::class,
-                // Modular module:* — separate namespace
-                ModuleMake::class,
-                ModuleScaffold::class,
-                ModuleRemove::class,
-                ModuleList::class,
             ]);
 
             $this->publishes([
@@ -181,7 +184,7 @@ class ApiStarterServiceProvider extends ServiceProvider
         $authNeedle = AuthConfig::middleware()[0] ?? 'auth:sanctum';
 
         if (preg_match_all(
-            '/\/\/ api-starter:resource:([A-Za-z0-9_]+):begin(.*?)\/\/ api-starter:resource:\1:end/s',
+            ResourceRouteMarker::allBlocksPattern(),
             $contents,
             $blocks,
             PREG_SET_ORDER
@@ -197,7 +200,7 @@ class ApiStarterServiceProvider extends ServiceProvider
                     continue;
                 }
 
-                if (preg_match("/apiResource\\('([^']+)'/", $body, $m)) {
+                if (preg_match(ResourceRouteMarker::apiResourceUriPattern(), $body, $m)) {
                     $out[] = $modulePrefix . '/' . $m[1];
                 } elseif (str_contains($body, "Route::get('/',")
                     || str_contains($body, 'Route::get("/",')) {
@@ -212,7 +215,7 @@ class ApiStarterServiceProvider extends ServiceProvider
 
         // Unmarked / legacy file: whole file protected, or lines with auth middleware
         if ($legacyProtectedFile) {
-            if (preg_match_all("/apiResource\\('([^']+)'/", $contents, $matches)) {
+            if (preg_match_all(ResourceRouteMarker::apiResourceUriPattern(), $contents, $matches)) {
                 foreach ($matches[1] as $resource) {
                     $out[] = $modulePrefix . '/' . $resource;
                 }
@@ -265,119 +268,154 @@ class ApiStarterServiceProvider extends ServiceProvider
         $docsUi = trim((string) config('api-starter.openapi.docs_ui', '/api/docs'), '/');
 
         // Docs stay public — no auth middleware.
-        Route::get($docsJson, function () {
-            $path = config('api-starter.paths.openapi', base_path('storage/api-docs')) . '/openapi.json';
+        Route::get($docsJson, fn (): JsonResponse => $this->serveOpenApiJson())
+            ->name('api-starter.openapi.json');
 
-            if (! File::exists($path)) {
-                return response()->json([
-                    'message' => 'OpenAPI spec not found. Run: php artisan api:scaffold {Resource}',
-                ], 404);
-            }
+        Route::get($docsUi, fn (): Response => $this->serveSwaggerUi())
+            ->name('api-starter.openapi.ui');
+    }
 
-            $spec = json_decode((string) File::get($path), true);
+    protected function serveOpenApiJson(): JsonResponse
+    {
+        $path = config('api-starter.paths.openapi', base_path('storage/api-docs')) . '/openapi.json';
 
-            if (! is_array($spec)) {
-                return response()->json(['message' => 'Invalid OpenAPI JSON'], 500);
-            }
+        if (! File::exists($path)) {
+            return response()->json([
+                'message' => 'OpenAPI spec not found. Run: php artisan module:scaffold {Module} (or php artisan api:scaffold {Resource}).',
+            ], 404);
+        }
 
-            $serverUrl = (string) config('api-starter.openapi.server_url', '/api');
-            $spec['servers'] = [
-                [
-                    'url' => $serverUrl,
-                    'description' => 'Same origin as docs',
+        $spec = json_decode((string) File::get($path), true);
+
+        if (! is_array($spec)) {
+            return response()->json(['message' => 'Invalid OpenAPI JSON'], 500);
+        }
+
+        $serverUrl = (string) config('api-starter.openapi.server_url', '/api');
+        $spec['servers'] = [
+            [
+                'url' => $serverUrl,
+                'description' => 'Same origin as docs',
+            ],
+        ];
+
+        // Always expose Bearer scheme (for --auth resources). Required when auth.enabled.
+        $spec['components'] ??= [];
+        $spec['components']['securitySchemes'] = array_merge(
+            $spec['components']['securitySchemes'] ?? [],
+            [
+                'sanctum' => [
+                    'type' => 'http',
+                    'scheme' => 'bearer',
+                    'bearerFormat' => 'Token',
+                    'description' => 'Paste token ONLY — no "Bearer " prefix. Example: 1|xxxxx',
                 ],
-            ];
+            ]
+        );
 
-            // Always expose Bearer scheme (for --auth resources). Required when auth.enabled.
-            $spec['components'] ??= [];
-            $spec['components']['securitySchemes'] = array_merge(
-                $spec['components']['securitySchemes'] ?? [],
-                [
-                    'sanctum' => [
-                        'type' => 'http',
-                        'scheme' => 'bearer',
-                        'bearerFormat' => 'Token',
-                        'description' => 'Paste token ONLY — no "Bearer " prefix. Example: 1|xxxxx',
-                    ],
-                ]
-            );
+        // Attach security to paths that live under routes/api-starter-protected
+        // so Swagger UI actually sends Authorization header (fixes 401).
+        $protectedRoutes = $this->protectedFlatRouteSegments();
 
-            // Attach security to paths that live under routes/api-starter-protected
-            // so Swagger UI actually sends Authorization header (fixes 401).
-            $protectedDir = config('api-starter.paths.route_protected', base_path('routes/api-starter-protected'));
-            $protectedRoutes = [];
-            if (is_dir($protectedDir)) {
-                foreach (glob($protectedDir . '/*.php') ?: [] as $file) {
-                    $protectedRoutes[] = basename($file, '.php');
-                }
+        // Module routes that require Bearer (api.php with auth middleware, or legacy api-protected.php)
+        $moduleProtected = $this->protectedModulePaths();
+
+        foreach ($spec['paths'] ?? [] as $pathKey => $operations) {
+            if (! is_array($operations)) {
+                continue;
             }
 
-            // Module routes that require Bearer (api.php with auth middleware, or legacy api-protected.php)
-            $moduleProtected = [];
-            if (config('api-starter.modules.enabled', true)) {
-                foreach (ModulePaths::list() as $module) {
-                    $prefix = ModulePaths::prefix($module);
-                    foreach (['api.php', 'api-protected.php'] as $routeName) {
-                        $file = ModulePaths::module($module) . '/Routes/' . $routeName;
-                        if (! is_file($file)) {
-                            continue;
-                        }
-                        $contents = (string) file_get_contents($file);
-                        $legacyFile = $routeName === 'api-protected.php';
-                        $moduleProtected = array_merge(
-                            $moduleProtected,
-                            $this->discoverProtectedModulePaths($prefix, $module, $contents, $legacyFile)
-                        );
+            $segment = ltrim(explode('/', trim($pathKey, '/'))[0] ?? '', '/');
+            $trimmed = ltrim($pathKey, '/');
+            $needsAuth = in_array($segment, $protectedRoutes, true)
+                || str_starts_with($pathKey, '/auth/logout')
+                || str_starts_with($pathKey, '/auth/me');
+
+            if (! $needsAuth) {
+                foreach ($moduleProtected as $mp) {
+                    if ($trimmed === $mp || str_starts_with($trimmed, $mp . '/')) {
+                        $needsAuth = true;
+                        break;
                     }
                 }
-                $moduleProtected = array_values(array_unique($moduleProtected));
             }
 
-            foreach ($spec['paths'] ?? [] as $pathKey => $operations) {
-                if (! is_array($operations)) {
+            if (! $needsAuth) {
+                continue;
+            }
+
+            foreach ($operations as $method => $operation) {
+                if (! is_array($operation) || in_array($method, ['parameters', 'summary', 'description', 'servers'], true)) {
                     continue;
                 }
+                $spec['paths'][$pathKey][$method]['security'] = [['sanctum' => []]];
+            }
+        }
 
-                $segment = ltrim(explode('/', trim($pathKey, '/'))[0] ?? '', '/');
-                $trimmed = ltrim($pathKey, '/');
-                $needsAuth = in_array($segment, $protectedRoutes, true)
-                    || str_starts_with($pathKey, '/auth/logout')
-                    || str_starts_with($pathKey, '/auth/me');
+        if (AuthConfig::enabled()) {
+            $spec['security'] = [['sanctum' => []]];
+        }
 
-                if (! $needsAuth) {
-                    foreach ($moduleProtected as $mp) {
-                        if ($trimmed === $mp || str_starts_with($trimmed, $mp . '/')) {
-                            $needsAuth = true;
-                            break;
-                        }
-                    }
-                }
+        return response()->json($spec, 200, [], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    }
 
-                if (! $needsAuth) {
+    /**
+     * Basenames under routes/api-starter-protected — these paths need Bearer.
+     *
+     * @return list<string>
+     */
+    protected function protectedFlatRouteSegments(): array
+    {
+        $protectedDir = config('api-starter.paths.route_protected', base_path('routes/api-starter-protected'));
+        $protectedRoutes = [];
+        if (is_dir($protectedDir)) {
+            foreach (glob($protectedDir . '/*.php') ?: [] as $file) {
+                $protectedRoutes[] = basename($file, '.php');
+            }
+        }
+
+        return $protectedRoutes;
+    }
+
+    /**
+     * Module route paths that require Bearer, across api.php and legacy api-protected.php.
+     *
+     * @return list<string>
+     */
+    protected function protectedModulePaths(): array
+    {
+        if (! config('api-starter.modules.enabled', true)) {
+            return [];
+        }
+
+        $moduleProtected = [];
+
+        foreach (ModulePaths::list() as $module) {
+            $prefix = ModulePaths::prefix($module);
+            foreach (['api.php', 'api-protected.php'] as $routeName) {
+                $file = ModulePaths::module($module) . '/Routes/' . $routeName;
+                if (! is_file($file)) {
                     continue;
                 }
-
-                foreach ($operations as $method => $operation) {
-                    if (! is_array($operation) || in_array($method, ['parameters', 'summary', 'description', 'servers'], true)) {
-                        continue;
-                    }
-                    $spec['paths'][$pathKey][$method]['security'] = [['sanctum' => []]];
-                }
+                $contents = (string) file_get_contents($file);
+                $legacyFile = $routeName === 'api-protected.php';
+                $moduleProtected = array_merge(
+                    $moduleProtected,
+                    $this->discoverProtectedModulePaths($prefix, $module, $contents, $legacyFile)
+                );
             }
+        }
 
-            if (AuthConfig::enabled()) {
-                $spec['security'] = [['sanctum' => []]];
-            }
+        return array_values(array_unique($moduleProtected));
+    }
 
-            return response()->json($spec, 200, [], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-        })->name('api-starter.openapi.json');
+    protected function serveSwaggerUi(): Response
+    {
+        $title = e((string) config('api-starter.openapi.title', 'API Documentation'));
+        $specPath = '/' . trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
+        $specUrl = e($specPath);
 
-        Route::get($docsUi, function () {
-            $title = e((string) config('api-starter.openapi.title', 'API Documentation'));
-            $specPath = '/' . trim((string) config('api-starter.openapi.docs_json', '/api/docs/openapi.json'), '/');
-            $specUrl = e($specPath);
-
-            $html = <<<HTML
+        $html = <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -404,9 +442,8 @@ class ApiStarterServiceProvider extends ServiceProvider
 </html>
 HTML;
 
-            return response($html, 200, [
-                'Content-Type' => 'text/html; charset=UTF-8',
-            ]);
-        })->name('api-starter.openapi.ui');
+        return response($html, 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+        ]);
     }
 }

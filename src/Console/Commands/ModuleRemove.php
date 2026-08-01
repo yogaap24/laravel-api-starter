@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Kindharika\ApiStarter\Console\InteractsWithStubs;
 use Kindharika\ApiStarter\Console\ManagesOpenApiDocument;
 use Kindharika\ApiStarter\Modules\ModulePaths;
+use Kindharika\ApiStarter\Modules\ResourceRouteMarker;
 
 class ModuleRemove extends Command
 {
@@ -173,18 +174,12 @@ class ModuleRemove extends Command
                 continue;
             }
             $contents = (string) file_get_contents($path);
-            $begin = preg_quote("// api-starter:resource:{$name}:begin", '/');
-            $end = preg_quote("// api-starter:resource:{$name}:end", '/');
-            $updated = preg_replace('/' . $begin . '.*?' . $end . '\n?/s', '', $contents) ?? $contents;
-            if ($routeUri !== '') {
-                $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($routeUri, '/') . '\'.*\n?/m';
-                $updated = preg_replace($pattern, '', $updated) ?? $updated;
-            }
-            foreach ([$route, Str::kebab(Str::studly($name))] as $legacy) {
-                $pattern = '/^Route::(?:middleware\([^)]+\)->)?apiResource\(\'' . preg_quote($legacy, '/') . '\'.*\n?/m';
-                $updated = preg_replace($pattern, '', $updated) ?? $updated;
-            }
-            if (is_string($updated) && $updated !== $contents) {
+            $updated = ResourceRouteMarker::strip($contents, $name, [
+                $routeUri,
+                $route,
+                Str::kebab(Str::studly($name)),
+            ]);
+            if ($updated !== $contents) {
                 file_put_contents($path, $updated);
                 $deleted[] = "route:{$routeFile}:{$name}";
             }
