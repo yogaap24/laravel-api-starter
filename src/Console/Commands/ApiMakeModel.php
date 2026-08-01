@@ -38,25 +38,15 @@ class ApiMakeModel extends GeneratorCommand
 
     protected function buildClass($name): string
     {
-        $stub = $this->files->get($this->getStub());
         $class = class_basename($name);
-        $namespace = $this->getNamespace($name);
-        $table = $this->option('table') ?? Str::snake(Str::pluralStudly($class));
 
-        $schema = ColumnSchema::parse((string) ($this->option('columns') ?: ''));
-        $audit = (bool) $this->option('audit');
-        $cols = $this->columnReplacements($schema, $audit);
-
-        $replacements = array_merge([
-            'namespace' => $namespace,
+        return $this->renderStub('model.stub', array_merge([
+            'namespace' => $this->getNamespace($name),
             'class' => $class,
-            'table' => $table,
-        ], $cols);
-
-        foreach ($replacements as $key => $value) {
-            $stub = str_replace('{{' . $key . '}}', $value, $stub);
-        }
-
-        return $stub;
+            'table' => $this->option('table') ?? Str::snake(Str::pluralStudly($class)),
+        ], $this->columnReplacements(
+            ColumnSchema::parse((string) ($this->option('columns') ?: '')),
+            (bool) $this->option('audit'),
+        )));
     }
 }

@@ -42,21 +42,12 @@ class ApiMakeResource extends GeneratorCommand
 
     protected function buildClass($name): string
     {
-        $stub = $this->files->get($this->getStub());
-        $class = class_basename($name);
-        $namespace = $this->getNamespace($name);
-        $schema = ColumnSchema::parse((string) ($this->option('columns') ?: ''));
-        $cols = $this->columnReplacements($schema, false);
-
-        $replacements = array_merge([
-            'namespace' => $namespace,
-            'class' => $class,
-        ], $cols);
-
-        foreach ($replacements as $key => $value) {
-            $stub = str_replace('{{' . $key . '}}', $value, $stub);
-        }
-
-        return $stub;
+        return $this->renderStub('resource.stub', array_merge([
+            'namespace' => $this->getNamespace($name),
+            'class' => class_basename($name),
+        ], $this->columnReplacements(
+            ColumnSchema::parse((string) ($this->option('columns') ?: '')),
+            false,
+        )));
     }
 }

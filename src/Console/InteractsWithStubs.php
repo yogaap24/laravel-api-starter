@@ -6,6 +6,12 @@ namespace Kindharika\ApiStarter\Console;
 
 trait InteractsWithStubs
 {
+    /**
+     * NOTE: this name collides with the abstract zero-arg
+     * Illuminate\Console\GeneratorCommand::getStub(). In a GeneratorCommand
+     * subclass the class-declared override wins, so this method is unreachable
+     * there. Nothing inside this trait may call it — use getStubPath() instead.
+     */
     protected function getStub(string $file): string
     {
         $customPath = base_path('stubs/api-starter/' . $file);
@@ -37,7 +43,7 @@ trait InteractsWithStubs
      */
     protected function renderStub(string $stubFile, array $replacements): string
     {
-        $content = $this->getStub($stubFile);
+        $content = (string) file_get_contents($this->getStubPath($stubFile));
 
         foreach ($replacements as $search => $replace) {
             $content = str_replace('{{' . $search . '}}', $replace, $content);
